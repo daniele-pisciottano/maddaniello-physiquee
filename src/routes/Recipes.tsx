@@ -21,13 +21,6 @@ import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Textarea'
 import { Separator } from '@/components/ui/Separator'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/Select'
-import {
   recipePerServing,
   recipeTotals,
   useDeleteRecipe,
@@ -36,8 +29,10 @@ import {
   type Recipe,
   type RecipeItemInput,
 } from '@/features/recipes/useRecipes'
-import { useFoods, type Food } from '@/features/foods/useFoods'
+import { useFoods } from '@/features/foods/useFoods'
 import { round0, round1, scaleForGrams } from '@/lib/macro'
+import { IngredientPickerDialog } from '@/components/food-picker/IngredientPickerDialog'
+import type { PickedFood } from '@/components/food-picker/FoodPicker'
 
 export function Recipes() {
   const { data: recipes = [], isLoading } = useRecipes()
@@ -230,6 +225,7 @@ function RecipeEditDialog({
 
   const save = useSaveRecipe()
   const { data: customFoods = [] } = useFoods()
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -267,44 +263,18 @@ function RecipeEditDialog({
 
   const s = Math.max(1, parseInt(servings) || 1)
 
-  function addEmptyRow() {
+  function addFromPicked(p: PickedFood) {
     setItems((cur) => [
       ...cur,
       {
         _key: Math.random().toString(36).slice(2),
-        food_id: null,
-        food_name_snapshot: '',
-        grams: 0,
-        kcal_snapshot: 0,
-        protein_snapshot: 0,
-        carb_snapshot: 0,
-        fat_snapshot: 0,
-      },
-    ])
-  }
-
-  function addFromFood(food: Food) {
-    const grams = 100
-    const scaled = scaleForGrams(
-      {
-        kcal: Number(food.kcal_100g),
-        protein: Number(food.protein_100g),
-        carb: Number(food.carb_100g),
-        fat: Number(food.fat_100g),
-      },
-      grams,
-    )
-    setItems((cur) => [
-      ...cur,
-      {
-        _key: Math.random().toString(36).slice(2),
-        food_id: food.id,
-        food_name_snapshot: food.name,
-        grams,
-        kcal_snapshot: scaled.kcal,
-        protein_snapshot: scaled.protein,
-        carb_snapshot: scaled.carb,
-        fat_snapshot: scaled.fat,
+        food_id: p.food_id,
+        food_name_snapshot: p.food_name,
+        grams: p.grams,
+        kcal_snapshot: p.kcal,
+        protein_snapshot: p.protein_g,
+        carb_snapshot: p.carb_g,
+        fat_snapshot: p.fat_g,
       },
     ])
   }
@@ -434,41 +404,21 @@ function RecipeEditDialog({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-semibold">Ingredienti</h4>
-              <div className="flex items-center gap-2">
-                {customFoods.length > 0 && (
-                  <Select
-                    onValueChange={(val) => {
-                      const f = customFoods.find((x) => x.id === val)
-                      if (f) addFromFood(f)
-                    }}
-                  >
-                    <SelectTrigger className="h-8 w-48 text-xs">
-                      <SelectValue placeholder="Da alimento custom…" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-80">
-                      {customFoods.map((f) => (
-                        <SelectItem key={f.id} value={f.id}>
-                          {f.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addEmptyRow}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Manuale
-                </Button>
-              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setPickerOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Aggiungi ingrediente
+              </Button>
             </div>
 
             {items.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                Nessun ingrediente. Aggiungi dal menu sopra.
+                Nessun ingrediente. Clicca "Aggiungi ingrediente" per cercare,
+                scansionare un barcode o inserirlo manualmente.
               </p>
             )}
 
@@ -510,6 +460,11 @@ function RecipeEditDialog({
           </div>
         </div>
       </DialogContent>
+      <IngredientPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onPicked={addFromPicked}
+      />
     </Dialog>
   )
 }

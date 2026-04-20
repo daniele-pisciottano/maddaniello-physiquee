@@ -1,5 +1,6 @@
 import { ProfileSection } from './settings/ProfileSection'
 import { GoalSection } from './settings/GoalSection'
+import { TargetsSection } from './settings/TargetsSection'
 import { MeasurementsSection } from './settings/MeasurementsSection'
 import { AiSection } from './settings/AiSection'
 import { SystemPromptSection } from './settings/SystemPromptSection'
@@ -21,6 +22,7 @@ export function Settings() {
       </div>
       <ProfileSection />
       <GoalSection />
+      <TargetsSection />
       <MeasurementsSection />
       <AiSection />
       <SystemPromptSection />

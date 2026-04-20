@@ -16,6 +16,10 @@ export type Profile = {
   goal_weight_kg: number | null
   goal_body_fat_pct: number | null
   goal_deadline: string | null
+  target_kcal: number | null
+  target_protein_g: number | null
+  target_carb_g: number | null
+  target_fat_g: number | null
   dietary_prefs: Record<string, unknown>
   created_at: string
   updated_at: string
