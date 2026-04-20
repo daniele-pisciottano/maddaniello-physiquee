@@ -7,7 +7,7 @@ const items = [
   { to: '/meals', icon: Utensils, label: 'Pasti', disabled: true },
   { to: '/training', icon: Dumbbell, label: 'Training', disabled: true },
   { to: '/chat', icon: MessageCircle, label: 'Chat', disabled: true },
-  { to: '/settings', icon: Settings, label: 'Impost.', disabled: true },
+  { to: '/settings', icon: Settings, label: 'Impost.', disabled: false },
 ]
 
 export function BottomNav() {
