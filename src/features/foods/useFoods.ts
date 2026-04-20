@@ -73,6 +73,21 @@ export function useAddFood() {
   })
 }
 
+// Cerca un alimento custom tramite barcode. Ritorna null se non esiste.
+export async function lookupFoodByBarcode(
+  userId: string,
+  barcode: string,
+): Promise<Food | null> {
+  const { data, error } = await supabase
+    .from('foods')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('barcode', barcode)
+    .maybeSingle()
+  if (error) throw error
+  return (data as Food | null) ?? null
+}
+
 export function useDeleteFood() {
   const qc = useQueryClient()
   return useMutation({

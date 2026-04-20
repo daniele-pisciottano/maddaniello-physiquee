@@ -10,8 +10,14 @@ import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { kcalFromMacros, round1, scaleForGrams } from '@/lib/macro'
 import { offProductByBarcode, offSearch, type OffFood } from '@/lib/off'
-import { useAddFood, useFoods, type Food } from '@/features/foods/useFoods'
+import {
+  lookupFoodByBarcode,
+  useAddFood,
+  useFoods,
+  type Food,
+} from '@/features/foods/useFoods'
 import { BarcodeScanner } from '@/components/BarcodeScanner'
+import { useAuth } from '@/features/auth/AuthProvider'
 
 export type PickedFood = {
   food_id: string | null
@@ -193,10 +199,12 @@ export function FoodSearchTab({ onPicked }: { onPicked: OnPickFood }) {
 // ============================================================
 // BARCODE TAB
 // ============================================================
-type BcStatus = 'scanning' | 'looking' | 'not_found' | 'error'
+type BcStatus = 'scanning' | 'looking' | 'not_found' | 'manual_entry' | 'error'
 
 export function FoodBarcodeTab({ onPicked }: { onPicked: OnPickFood }) {
-  const [food, setFood] = useState<OffFood | null>(null)
+  const { user } = useAuth()
+  const [selectedLocal, setSelectedLocal] = useState<Food | null>(null)
+  const [selectedOff, setSelectedOff] = useState<OffFood | null>(null)
   const [status, setStatus] = useState<BcStatus>('scanning')
   const [lastCode, setLastCode] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -205,44 +213,55 @@ export function FoodBarcodeTab({ onPicked }: { onPicked: OnPickFood }) {
     setLastCode(code)
     setStatus('looking')
     try {
-      const res = await offProductByBarcode(code)
-      if (!res) {
-        setStatus('not_found')
+      // 1. Prima guarda negli alimenti custom dell'utente (memoria dei barcode non su OFF)
+      if (user) {
+        const local = await lookupFoodByBarcode(user.id, code)
+        if (local) {
+          setSelectedLocal(local)
+          return
+        }
+      }
+      // 2. Fallback su Open Food Facts
+      const off = await offProductByBarcode(code)
+      if (off) {
+        setSelectedOff(off)
       } else {
-        setFood(res)
+        setStatus('not_found')
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Errore OFF'
+      const msg = err instanceof Error ? err.message : 'Errore'
       setErrorMsg(msg)
       setStatus('error')
     }
   }
 
   function retry() {
-    setFood(null)
+    setSelectedLocal(null)
+    setSelectedOff(null)
     setLastCode(null)
     setErrorMsg(null)
     setStatus('scanning')
   }
 
-  if (food) {
+  // Alimento local trovato (già salvato dall'utente)
+  if (selectedLocal) {
     return (
       <FoodGramsPicker
-        selected={{ kind: 'off', food }}
+        selected={{ kind: 'local', food: selectedLocal }}
         onBack={retry}
         onConfirm={async (grams) => {
           const scaled = scaleForGrams(
             {
-              kcal: food.kcal_100g,
-              protein: food.protein_100g,
-              carb: food.carb_100g,
-              fat: food.fat_100g,
+              kcal: Number(selectedLocal.kcal_100g),
+              protein: Number(selectedLocal.protein_100g),
+              carb: Number(selectedLocal.carb_100g),
+              fat: Number(selectedLocal.fat_100g),
             },
             grams,
           )
           await onPicked({
-            food_id: null,
-            food_name: `${food.name}${food.brand ? ` · ${food.brand}` : ''}`,
+            food_id: selectedLocal.id,
+            food_name: selectedLocal.name,
             grams,
             kcal: scaled.kcal,
             protein_g: scaled.protein,
@@ -255,14 +274,58 @@ export function FoodBarcodeTab({ onPicked }: { onPicked: OnPickFood }) {
     )
   }
 
+  // Trovato su OFF
+  if (selectedOff) {
+    return (
+      <FoodGramsPicker
+        selected={{ kind: 'off', food: selectedOff }}
+        onBack={retry}
+        onConfirm={async (grams) => {
+          const scaled = scaleForGrams(
+            {
+              kcal: selectedOff.kcal_100g,
+              protein: selectedOff.protein_100g,
+              carb: selectedOff.carb_100g,
+              fat: selectedOff.fat_100g,
+            },
+            grams,
+          )
+          await onPicked({
+            food_id: null,
+            food_name: `${selectedOff.name}${selectedOff.brand ? ` · ${selectedOff.brand}` : ''}`,
+            grams,
+            kcal: scaled.kcal,
+            protein_g: scaled.protein,
+            carb_g: scaled.carb,
+            fat_g: scaled.fat,
+            source: 'barcode',
+          })
+        }}
+      />
+    )
+  }
+
+  // Form di creazione custom da barcode non trovato
+  if (status === 'manual_entry' && lastCode) {
+    return (
+      <BarcodeManualEntry
+        barcode={lastCode}
+        onSaved={(food) => {
+          setSelectedLocal(food)
+          setStatus('looking')
+        }}
+        onCancel={retry}
+      />
+    )
+  }
+
   return (
     <div className="space-y-3">
       {status === 'scanning' && <BarcodeScanner onDetected={handleDetected} />}
+
       {status === 'looking' && (
         <div className="rounded-md border border-border bg-background/50 p-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            Ricerca su Open Food Facts…
-          </p>
+          <p className="text-sm text-muted-foreground">Ricerca prodotto…</p>
           {lastCode && (
             <p className="mt-1 font-mono text-xs text-muted-foreground">
               {lastCode}
@@ -270,6 +333,7 @@ export function FoodBarcodeTab({ onPicked }: { onPicked: OnPickFood }) {
           )}
         </div>
       )}
+
       {status === 'not_found' && (
         <div className="space-y-3 rounded-md border border-warning/40 bg-warning/10 p-4">
           <div>
@@ -277,15 +341,31 @@ export function FoodBarcodeTab({ onPicked }: { onPicked: OnPickFood }) {
               Prodotto non trovato
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Il barcode <span className="font-mono">{lastCode}</span> non è su
-              Open Food Facts (o senza dati nutrizionali).
+              Il barcode <span className="font-mono">{lastCode}</span> non è
+              nei tuoi alimenti né su Open Food Facts. Inseriscilo una volta e
+              lo ricorderò per sempre.
             </p>
           </div>
-          <Button type="button" size="sm" onClick={retry}>
-            Scansiona di nuovo
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setStatus('manual_entry')}
+            >
+              Aggiungi manualmente
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={retry}
+            >
+              Scansiona di nuovo
+            </Button>
+          </div>
         </div>
       )}
+
       {status === 'error' && (
         <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-4">
           <div>
@@ -298,6 +378,141 @@ export function FoodBarcodeTab({ onPicked }: { onPicked: OnPickFood }) {
         </div>
       )}
     </div>
+  )
+}
+
+// ============================================================
+// BARCODE MANUAL ENTRY
+// Salva un nuovo alimento custom con barcode associato, così la
+// prossima scansione lo ritrova nel DB locale.
+// ============================================================
+function BarcodeManualEntry({
+  barcode,
+  onSaved,
+  onCancel,
+}: {
+  barcode: string
+  onSaved: (food: Food) => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState('')
+  const [brand, setBrand] = useState('')
+  const [kcal, setKcal] = useState('')
+  const [protein, setProtein] = useState('')
+  const [carb, setCarb] = useState('')
+  const [fat, setFat] = useState('')
+  const [serving, setServing] = useState('')
+  const addFood = useAddFood()
+
+  const p = num(protein)
+  const c = num(carb)
+  const f = num(fat)
+  const computedKcal = kcalFromMacros(p, c, f)
+  const kcalShown = num(kcal) > 0 ? num(kcal) : round1(computedKcal)
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!name.trim()) {
+      toast.error('Nome richiesto')
+      return
+    }
+    if (kcalShown <= 0) {
+      toast.error('Inserisci kcal o macro')
+      return
+    }
+    try {
+      const saved = await addFood.mutateAsync({
+        name: name.trim(),
+        brand: brand.trim() || null,
+        barcode,
+        source: 'custom',
+        serving_g: num(serving) > 0 ? num(serving) : null,
+        kcal_100g: round1(kcalShown),
+        protein_100g: round1(p),
+        carb_100g: round1(c),
+        fat_100g: round1(f),
+      })
+      toast.success('Alimento salvato: la prossima scansione lo troverà')
+      onSaved(saved)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Errore salvataggio')
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="rounded-md border border-border bg-background/50 p-3">
+        <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+          Barcode
+        </p>
+        <p className="mt-0.5 font-mono text-sm">{barcode}</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="bme_name">Nome prodotto</Label>
+        <Input
+          id="bme_name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="es. Biscotti integrali"
+          autoFocus
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="bme_brand">Marca (opz.)</Label>
+        <Input
+          id="bme_brand"
+          value={brand}
+          onChange={(e) => setBrand(e.target.value)}
+          placeholder="es. Galbusera"
+        />
+      </div>
+
+      <p className="text-xs text-muted-foreground">Valori per 100g:</p>
+      <div className="grid grid-cols-4 gap-2">
+        <FieldMini
+          id="bme_k"
+          label="Kcal"
+          value={kcal}
+          onChange={setKcal}
+          placeholder={computedKcal > 0 ? round1(computedKcal).toString() : undefined}
+        />
+        <FieldMini id="bme_p" label="Prot (g)" value={protein} onChange={setProtein} />
+        <FieldMini id="bme_c" label="Carb (g)" value={carb} onChange={setCarb} />
+        <FieldMini id="bme_f" label="Grassi (g)" value={fat} onChange={setFat} />
+      </div>
+
+      {kcal === '' && computedKcal > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Kcal calcolate dai macro:{' '}
+          <span className="font-mono">{round1(computedKcal)}</span>
+        </p>
+      )}
+
+      <div className="space-y-2">
+        <Label htmlFor="bme_serving">Porzione standard (g, opz.)</Label>
+        <Input
+          id="bme_serving"
+          type="number"
+          min="0"
+          step="1"
+          value={serving}
+          onChange={(e) => setServing(e.target.value)}
+          placeholder="es. 30 per una bustina"
+          className="font-mono"
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button type="submit" disabled={addFood.isPending}>
+          {addFood.isPending ? 'Salvataggio…' : 'Salva e continua'}
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Annulla
+        </Button>
+      </div>
+    </form>
   )
 }
 
