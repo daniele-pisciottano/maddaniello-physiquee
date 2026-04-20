@@ -3,17 +3,19 @@ import { createClient } from '@supabase/supabase-js'
 const url = import.meta.env.VITE_SUPABASE_URL
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!url || !anonKey) {
-  throw new Error(
-    'Supabase env mancanti: imposta VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY in .env.local',
-  )
-}
+export const isSupabaseConfigured = Boolean(url && anonKey)
 
-export const supabase = createClient(url, anonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storage: window.localStorage,
+// Crea il client con fallback per non crashare a module load.
+// Se non configurato, l'app mostra una schermata diagnostica (vedi main.tsx).
+export const supabase = createClient(
+  url || 'http://localhost:54321',
+  anonKey || 'placeholder-anon-key',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    },
   },
-})
+)
