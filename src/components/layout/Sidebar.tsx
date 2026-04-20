@@ -1,10 +1,18 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Utensils, Dumbbell, MessageCircle, Settings } from 'lucide-react'
+import {
+  Home,
+  Utensils,
+  ChefHat,
+  Dumbbell,
+  MessageCircle,
+  Settings,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const items = [
   { to: '/', icon: Home, label: 'Oggi', disabled: false },
-  { to: '/meals', icon: Utensils, label: 'Pasti', disabled: true },
+  { to: '/meals', icon: Utensils, label: 'Pasti', disabled: false },
+  { to: '/recipes', icon: ChefHat, label: 'Ricette', disabled: false },
   { to: '/training', icon: Dumbbell, label: 'Training', disabled: true },
   { to: '/chat', icon: MessageCircle, label: 'Chat AI', disabled: true },
   { to: '/settings', icon: Settings, label: 'Impostazioni', disabled: false },
@@ -47,7 +55,7 @@ export function Sidebar() {
         ))}
       </nav>
       <div className="border-t border-border p-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-        v0.1 · phase 0
+        v0.2 · phase 2
       </div>
     </aside>
   )

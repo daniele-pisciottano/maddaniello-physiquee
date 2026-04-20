@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Utensils, Dumbbell, MessageCircle, Settings } from 'lucide-react'
+import { Home, Utensils, ChefHat, MessageCircle, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+// 5 tab ottimali per mobile: Oggi, Pasti, Ricette, Chat (soon), Impostazioni
 const items = [
   { to: '/', icon: Home, label: 'Oggi', disabled: false },
-  { to: '/meals', icon: Utensils, label: 'Pasti', disabled: true },
-  { to: '/training', icon: Dumbbell, label: 'Training', disabled: true },
+  { to: '/meals', icon: Utensils, label: 'Pasti', disabled: false },
+  { to: '/recipes', icon: ChefHat, label: 'Ricette', disabled: false },
   { to: '/chat', icon: MessageCircle, label: 'Chat', disabled: true },
   { to: '/settings', icon: Settings, label: 'Impost.', disabled: false },
 ]
