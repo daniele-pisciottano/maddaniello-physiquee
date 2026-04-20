@@ -358,39 +358,43 @@ function SearchTab({ onAdd }: { onAdd: AddFn }) {
 // ============================================================
 // BARCODE TAB
 // ============================================================
+type BcStatus = 'scanning' | 'looking' | 'not_found' | 'error'
+
 function BarcodeTab({ onAdd }: { onAdd: AddFn }) {
   const [food, setFood] = useState<OffFood | null>(null)
-  const [notFound, setNotFound] = useState(false)
-  const [looking, setLooking] = useState(false)
+  const [status, setStatus] = useState<BcStatus>('scanning')
+  const [lastCode, setLastCode] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   async function handleDetected(code: string) {
-    if (looking || food) return
-    setLooking(true)
-    setNotFound(false)
+    setLastCode(code)
+    setStatus('looking')
     try {
       const res = await offProductByBarcode(code)
       if (!res) {
-        setNotFound(true)
-        toast.warning(`Barcode ${code}: non trovato su OFF`)
+        setStatus('not_found')
       } else {
         setFood(res)
-        toast.success('Prodotto trovato')
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Errore OFF')
-    } finally {
-      setLooking(false)
+      const msg = err instanceof Error ? err.message : 'Errore OFF'
+      setErrorMsg(msg)
+      setStatus('error')
     }
+  }
+
+  function retry() {
+    setFood(null)
+    setLastCode(null)
+    setErrorMsg(null)
+    setStatus('scanning')
   }
 
   if (food) {
     return (
       <FoodGramsPicker
         selected={{ kind: 'off', food }}
-        onBack={() => {
-          setFood(null)
-          setNotFound(false)
-        }}
+        onBack={retry}
         onConfirm={(grams) => {
           const scaled = scaleForGrams(
             {
@@ -416,13 +420,51 @@ function BarcodeTab({ onAdd }: { onAdd: AddFn }) {
   }
 
   return (
-    <div className="space-y-2">
-      <BarcodeScanner onDetected={handleDetected} />
-      {looking && <p className="text-sm text-muted-foreground">Ricerca su OFF…</p>}
-      {notFound && (
-        <p className="text-sm text-warning">
-          Prodotto non trovato. Usa il tab Rapido per inserirlo manualmente.
-        </p>
+    <div className="space-y-3">
+      {status === 'scanning' && <BarcodeScanner onDetected={handleDetected} />}
+
+      {status === 'looking' && (
+        <div className="rounded-md border border-border bg-background/50 p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            Ricerca su Open Food Facts…
+          </p>
+          {lastCode && (
+            <p className="mt-1 font-mono text-xs text-muted-foreground">
+              {lastCode}
+            </p>
+          )}
+        </div>
+      )}
+
+      {status === 'not_found' && (
+        <div className="space-y-3 rounded-md border border-warning/40 bg-warning/10 p-4">
+          <div>
+            <p className="text-sm font-semibold text-warning">
+              Prodotto non trovato
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Il barcode <span className="font-mono">{lastCode}</span> non è su
+              Open Food Facts (o non ha dati nutrizionali).
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" onClick={retry}>
+              Scansiona di nuovo
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {status === 'error' && (
+        <div className="space-y-3 rounded-md border border-destructive/40 bg-destructive/10 p-4">
+          <div>
+            <p className="text-sm font-semibold text-destructive">Errore</p>
+            <p className="mt-1 text-xs text-muted-foreground">{errorMsg}</p>
+          </div>
+          <Button type="button" size="sm" onClick={retry}>
+            Riprova
+          </Button>
+        </div>
       )}
     </div>
   )

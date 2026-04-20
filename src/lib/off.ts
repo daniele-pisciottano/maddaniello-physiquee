@@ -1,8 +1,8 @@
-// Open Food Facts API wrapper — lato client, no CORS issues, free & unlimited.
+// Open Food Facts API wrapper — lato client, no CORS issues.
+// Usiamo il dominio italiano per risultati localizzati + lc=it.
 // Docs: https://openfoodfacts.github.io/openfoodfacts-server/api/
 
-const UA = 'MaddaniellosPhysique/0.1 (personal)'
-const BASE = 'https://world.openfoodfacts.org'
+const BASE = 'https://it.openfoodfacts.org'
 
 export type OffFood = {
   barcode: string
@@ -25,6 +25,7 @@ type OffProductResponse = {
     code: string
     product_name?: string
     product_name_it?: string
+    generic_name_it?: string
     brands?: string
     serving_size?: string
     serving_quantity?: number
@@ -49,7 +50,11 @@ type OffSearchResponse = {
 
 function parseProduct(p: NonNullable<OffProductResponse['product']>): OffFood {
   const n = p.nutriments ?? {}
-  const name = p.product_name_it || p.product_name || '(senza nome)'
+  const name =
+    p.product_name_it ||
+    p.generic_name_it ||
+    p.product_name ||
+    '(senza nome)'
   return {
     barcode: p.code,
     name,
@@ -69,11 +74,25 @@ function parseProduct(p: NonNullable<OffProductResponse['product']>): OffFood {
   }
 }
 
+const FIELDS = [
+  'code',
+  'product_name',
+  'product_name_it',
+  'generic_name_it',
+  'brands',
+  'serving_quantity',
+  'serving_size',
+  'nutriments',
+  'image_front_url',
+  'image_url',
+  'nutrition_grade_fr',
+].join(',')
+
 export async function offProductByBarcode(
   barcode: string,
 ): Promise<OffFood | null> {
-  const url = `${BASE}/api/v2/product/${encodeURIComponent(barcode)}.json?fields=code,product_name,product_name_it,brands,serving_quantity,serving_size,nutriments,image_front_url,image_url,nutrition_grade_fr`
-  const res = await fetch(url, { headers: { 'User-Agent': UA } })
+  const url = `${BASE}/api/v2/product/${encodeURIComponent(barcode)}.json?lc=it&fields=${FIELDS}`
+  const res = await fetch(url)
   if (!res.ok) {
     throw new Error(`OFF errore ${res.status}`)
   }
@@ -84,8 +103,16 @@ export async function offProductByBarcode(
 
 export async function offSearch(query: string): Promise<OffFood[]> {
   if (!query.trim()) return []
-  const url = `${BASE}/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=15&fields=code,product_name,product_name_it,brands,serving_quantity,nutriments,image_front_url,image_url,nutrition_grade_fr`
-  const res = await fetch(url, { headers: { 'User-Agent': UA } })
+  // V2 search API, localizzata in italiano
+  const url =
+    `${BASE}/api/v2/search` +
+    `?search_terms=${encodeURIComponent(query)}` +
+    `&lc=it` +
+    `&page_size=20` +
+    `&fields=${FIELDS}` +
+    // Priorità ai prodotti venduti in Italia (ma non li filtra hard)
+    `&sort_by=popularity_key`
+  const res = await fetch(url)
   if (!res.ok) {
     throw new Error(`OFF search errore ${res.status}`)
   }
@@ -94,5 +121,11 @@ export async function offSearch(query: string): Promise<OffFood[]> {
     .filter((p): p is NonNullable<typeof p> => !!p && !!p.code)
     .map(parseProduct)
     // scarta prodotti senza dati nutrizionali minimi
-    .filter((f) => f.kcal_100g > 0 || f.protein_100g > 0 || f.carb_100g > 0 || f.fat_100g > 0)
+    .filter(
+      (f) =>
+        f.kcal_100g > 0 ||
+        f.protein_100g > 0 ||
+        f.carb_100g > 0 ||
+        f.fat_100g > 0,
+    )
 }
