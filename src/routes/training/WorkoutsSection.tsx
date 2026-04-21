@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Sparkles, Loader2 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
@@ -28,6 +28,7 @@ import {
   useWorkouts,
   type WorkoutIntensity,
 } from '@/features/training/useWorkouts'
+import { useEstimateWorkoutKcal } from '@/features/training/useEstimateKcal'
 
 const INTENSITY_LABELS: Record<WorkoutIntensity, string> = {
   low: 'Bassa',
@@ -44,6 +45,7 @@ export function WorkoutsSection() {
   const { data: workouts = [] } = useWorkouts(10)
   const add = useAddWorkout()
   const del = useDeleteWorkout()
+  const estimate = useEstimateWorkoutKcal()
 
   const [startedAt, setStartedAt] = useState(toLocalInputValue(new Date()))
   const [duration, setDuration] = useState('45')
@@ -51,6 +53,33 @@ export function WorkoutsSection() {
   const [intensity, setIntensity] = useState<WorkoutIntensity>('moderate')
   const [kcal, setKcal] = useState('')
   const [notes, setNotes] = useState('')
+
+  async function handleEstimateKcal() {
+    const dur = Number(duration)
+    if (!Number.isFinite(dur) || dur <= 0) {
+      toast.error('Imposta prima una durata valida')
+      return
+    }
+    if (!type.trim()) {
+      toast.error('Imposta prima il tipo di allenamento')
+      return
+    }
+    try {
+      const res = await estimate.mutateAsync({
+        workout_type: type.trim(),
+        duration_min: Math.round(dur),
+        intensity,
+        notes: notes.trim() || null,
+      })
+      setKcal(String(res.kcal_burned))
+      toast.success(`Stima: ${res.kcal_burned} kcal`, {
+        description: res.reasoning,
+        duration: 6000,
+      })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Stima fallita')
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -153,26 +182,43 @@ export function WorkoutsSection() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="w_kcal">Kcal (opz.)</Label>
-              <Input
-                id="w_kcal"
-                type="number"
-                min="0"
-                step="1"
-                value={kcal}
-                onChange={(e) => setKcal(e.target.value)}
-                placeholder="stima"
-                className="font-mono"
-              />
+              <div className="flex gap-1">
+                <Input
+                  id="w_kcal"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={kcal}
+                  onChange={(e) => setKcal(e.target.value)}
+                  placeholder="stima"
+                  className="font-mono"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handleEstimateKcal}
+                  disabled={estimate.isPending}
+                  aria-label="Stima con AI"
+                  title="Stima kcal con AI"
+                >
+                  {estimate.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="w_notes">Note (opz.)</Label>
+            <Label htmlFor="w_notes">Note / descrizione dettagliata (opz.)</Label>
             <Textarea
               id="w_notes"
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="es. focus pettorali + tricipiti"
+              placeholder="es. pettorali + tricipiti: panca 4x8, spinte manubri 3x10, croci cavi 3x12 — descrivi per stima AI più accurata"
             />
           </div>
           <Button type="submit" disabled={add.isPending}>

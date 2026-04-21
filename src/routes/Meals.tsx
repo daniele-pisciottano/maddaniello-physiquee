@@ -1,8 +1,14 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { format, isSameDay, parseISO, addDays, subDays } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { toast } from 'sonner'
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react'
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Trash2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { MealAddDialog } from './meals/MealAddDialog'
 import {
@@ -15,10 +21,16 @@ import {
 import { useProfile } from '@/features/profile/useProfile'
 import { MEAL_TYPE_LABELS, round0, round1 } from '@/lib/macro'
 
+function toLocalDateStr(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 export function Meals() {
   const [date, setDate] = useState(() => new Date())
   const [dialogOpen, setDialogOpen] = useState(false)
   const [defaultMealType, setDefaultMealType] = useState<MealType | undefined>()
+  const dateInputRef = useRef<HTMLInputElement>(null)
   const { data: entries = [], isLoading } = useMealsForDate(date)
   const { data: profile } = useProfile()
   const totals = useMemo(() => sumMealTotals(entries), [entries])
@@ -62,16 +74,43 @@ export function Meals() {
   return (
     <div className="space-y-6 pb-20 md:pb-6">
       {/* Header con navigazione data */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">
             Pasti
           </p>
-          <h2 className="mt-1 font-mono text-2xl font-semibold tracking-tight sm:text-3xl">
-            {isToday
-              ? 'Oggi'
-              : format(date, 'd MMMM yyyy', { locale: it })}
-          </h2>
+          <button
+            type="button"
+            onClick={() => {
+              const el = dateInputRef.current
+              if (!el) return
+              // showPicker è moderno (Chrome/Safari recenti). Fallback: focus.
+              try {
+                if (typeof el.showPicker === 'function') el.showPicker()
+                else el.click()
+              } catch {
+                el.click()
+              }
+            }}
+            className="mt-1 flex items-center gap-2 rounded-md text-left font-mono text-2xl font-semibold tracking-tight transition-colors hover:text-primary sm:text-3xl"
+            title="Clicca per scegliere una data"
+          >
+            {isToday ? 'Oggi' : format(date, 'd MMMM yyyy', { locale: it })}
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <input
+            ref={dateInputRef}
+            type="date"
+            value={toLocalDateStr(date)}
+            onChange={(e) => {
+              const v = e.target.value
+              if (!v) return
+              const [y, m, d] = v.split('-').map(Number)
+              setDate(new Date(y, m - 1, d))
+            }}
+            className="sr-only"
+            aria-label="Scegli data"
+          />
           <p className="mt-1 text-sm text-muted-foreground">
             {format(date, 'EEEE', { locale: it })}
           </p>

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
+import { toast } from 'sonner'
 import {
   ArrowRight,
   TrendingDown,
@@ -12,6 +13,9 @@ import {
   BarChart3,
   Scale,
   Sparkles,
+  Dumbbell,
+  Pill,
+  Check,
 } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useProfile } from '@/features/profile/useProfile'
@@ -21,6 +25,13 @@ import {
   useMealsForDate,
 } from '@/features/meals/useMeals'
 import { useReviewStatus } from '@/features/reviews/useReviews'
+import { useWorkouts } from '@/features/training/useWorkouts'
+import {
+  useLogSupplement,
+  useSupplementLogToday,
+  useSupplements,
+  type Supplement,
+} from '@/features/training/useSupplements'
 import { Button } from '@/components/ui/Button'
 import { QuickWeighDialog } from '@/components/QuickWeighDialog'
 import { cn } from '@/lib/utils'
@@ -63,6 +74,50 @@ export function Home() {
 
   const reviewStatus = useReviewStatus()
   const [quickWeighOpen, setQuickWeighOpen] = useState(false)
+
+  const { data: todayWorkouts = [] } = useWorkouts(20)
+  const todayWorkoutsFiltered = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10)
+    return todayWorkouts.filter((w) => w.started_at.slice(0, 10) === todayStr)
+  }, [todayWorkouts])
+  const todayWorkoutStats = useMemo(() => {
+    if (todayWorkoutsFiltered.length === 0) return null
+    return todayWorkoutsFiltered.reduce(
+      (acc, w) => ({
+        count: acc.count + 1,
+        duration: acc.duration + w.duration_min,
+        kcal: acc.kcal + (w.kcal_burned ?? 0),
+      }),
+      { count: 0, duration: 0, kcal: 0 },
+    )
+  }, [todayWorkoutsFiltered])
+
+  const { data: supplementsList = [] } = useSupplements()
+  const { data: supplementsToday = [] } = useSupplementLogToday()
+  const logSupp = useLogSupplement()
+  const activeSupps = supplementsList.filter((s) => s.active)
+  const loggedIds = new Set(
+    supplementsToday.map((l) => l.supplement_id).filter(Boolean) as string[],
+  )
+
+  async function handleQuickLogSupp(s: Supplement) {
+    try {
+      await logSupp.mutateAsync({
+        supplement_id: s.id,
+        supplement_name: s.name,
+        dose: s.dose,
+        unit: s.unit,
+      })
+      toast.success(`${s.name} loggato`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Errore')
+    }
+  }
+
+  // Numero di pasti tracciati = quanti meal_types distinti con >= 1 entry
+  const distinctMealTypesTracked = new Set(
+    todayMeals.map((m) => m.meal_type),
+  ).size
 
   const targets = {
     kcal: profile?.target_kcal ?? null,
@@ -231,10 +286,11 @@ export function Home() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold">
-                {todayMeals.length} {todayMeals.length === 1 ? 'pasto' : 'pasti'} oggi
+                {distinctMealTypesTracked}/4 pasti tracciati oggi
               </h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Ultimo:{' '}
+                {todayMeals.length}{' '}
+                {todayMeals.length === 1 ? 'voce' : 'voci'} loggate · ultima:{' '}
                 {format(parseISO(todayMeals[todayMeals.length - 1].eaten_at), 'HH:mm')}
                 {' · '}
                 {todayMeals[todayMeals.length - 1].food_name}
@@ -247,6 +303,90 @@ export function Home() {
               </Link>
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* Card Training — sempre visibile se profilo completo */}
+      {profile?.sex && profile?.height_cm && (
+        <div className="rounded-lg border border-border bg-card p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                <Dumbbell className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold">Training oggi</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {todayWorkoutStats
+                    ? `${todayWorkoutStats.count} ${todayWorkoutStats.count === 1 ? 'sessione' : 'sessioni'} · ${todayWorkoutStats.duration} min${todayWorkoutStats.kcal > 0 ? ` · ~${round0(todayWorkoutStats.kcal)} kcal bruciate` : ''}`
+                    : 'Nessuna sessione registrata'}
+                </p>
+              </div>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/training">
+                {todayWorkoutStats ? 'Dettagli' : 'Logga'}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Card Integratori — solo se ne hai nel catalogo */}
+      {activeSupps.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+              <Pill className="h-4 w-4 text-primary" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold">Integratori oggi</h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {loggedIds.size}/{activeSupps.length} presi · tocca per loggare
+              </p>
+            </div>
+          </div>
+          <ul className="mt-4 grid grid-cols-2 gap-2">
+            {activeSupps.slice(0, 6).map((s) => {
+              const taken = loggedIds.has(s.id)
+              return (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    disabled={taken || logSupp.isPending}
+                    onClick={() => handleQuickLogSupp(s)}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-xs transition-colors',
+                      taken
+                        ? 'border-primary/40 bg-primary/10 text-primary'
+                        : 'border-border bg-background hover:border-primary/40',
+                    )}
+                  >
+                    {taken ? (
+                      <Check className="h-3.5 w-3.5 shrink-0" />
+                    ) : (
+                      <Pill className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate font-medium">
+                      {s.name}
+                    </span>
+                    {s.dose != null && (
+                      <span className="shrink-0 font-mono text-[10px] tabular text-muted-foreground">
+                        {s.dose}
+                        {s.unit ?? ''}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+          {activeSupps.length > 6 && (
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              +{activeSupps.length - 6} altri in <Link to="/training" className="text-primary underline">Training</Link>
+            </p>
+          )}
         </div>
       )}
 
