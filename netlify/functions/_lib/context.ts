@@ -46,19 +46,43 @@ type LearnedCorrection = {
   content: string
 }
 
+type WorkoutRow = {
+  started_at: string
+  duration_min: number
+  workout_type: string
+  intensity: string | null
+  kcal_burned: number | null
+}
+
+type SleepRow = {
+  sleep_date: string
+  hours: number
+  quality: number | null
+}
+
 export async function buildContext(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<string> {
-  const [profile, latestMeasurement, todayMeals, weekMeals, rules, corrections] =
-    await Promise.all([
-      loadProfile(supabase, userId),
-      loadLatestMeasurement(supabase, userId),
-      loadTodayMeals(supabase, userId),
-      loadWeekMeals(supabase, userId),
-      loadActiveRules(supabase, userId),
-      loadActiveCorrections(supabase, userId),
-    ])
+  const [
+    profile,
+    latestMeasurement,
+    todayMeals,
+    weekMeals,
+    rules,
+    corrections,
+    weekWorkouts,
+    weekSleep,
+  ] = await Promise.all([
+    loadProfile(supabase, userId),
+    loadLatestMeasurement(supabase, userId),
+    loadTodayMeals(supabase, userId),
+    loadWeekMeals(supabase, userId),
+    loadActiveRules(supabase, userId),
+    loadActiveCorrections(supabase, userId),
+    loadWeekWorkouts(supabase, userId),
+    loadWeekSleep(supabase, userId),
+  ])
 
   const parts: string[] = []
   const now = new Date()
@@ -180,6 +204,34 @@ export async function buildContext(
     }
   }
 
+  // --- Allenamenti (ultimi 7 giorni) ---
+  if (weekWorkouts.length > 0) {
+    const totalMin = weekWorkouts.reduce((s, w) => s + w.duration_min, 0)
+    parts.push('## Allenamenti (ultimi 7 giorni)')
+    parts.push(
+      `Totale: ${weekWorkouts.length} sessioni, ${totalMin} min.`,
+    )
+    for (const w of weekWorkouts.slice(0, 10)) {
+      const day = w.started_at.slice(0, 10)
+      parts.push(
+        `- ${day}: ${w.workout_type} · ${w.duration_min}min${w.intensity ? ` · ${w.intensity}` : ''}${w.kcal_burned != null ? ` · ~${w.kcal_burned} kcal` : ''}`,
+      )
+    }
+  }
+
+  // --- Sonno (ultimi 7 giorni) ---
+  if (weekSleep.length > 0) {
+    const avg =
+      weekSleep.reduce((s, e) => s + Number(e.hours), 0) / weekSleep.length
+    const qualityAvg =
+      weekSleep.filter((e) => e.quality != null).reduce((s, e) => s + (e.quality ?? 0), 0) /
+      (weekSleep.filter((e) => e.quality != null).length || 1)
+    parts.push('## Sonno (ultimi 7 giorni)')
+    parts.push(
+      `Media: ${avg.toFixed(1)}h${qualityAvg > 0 ? ` · qualità ${qualityAvg.toFixed(1)}/5` : ''} · ${weekSleep.length} notti tracciate`,
+    )
+  }
+
   // --- Regole dietetiche ---
   if (rules.length > 0) {
     parts.push('## Regole alimentari attive')
@@ -290,6 +342,38 @@ async function loadActiveCorrections(
     .order('created_at', { ascending: false })
     .limit(30)
   return (data as LearnedCorrection[]) ?? []
+}
+
+async function loadWeekWorkouts(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<WorkoutRow[]> {
+  const start = new Date()
+  start.setDate(start.getDate() - 6)
+  start.setHours(0, 0, 0, 0)
+  const { data } = await supabase
+    .from('workouts')
+    .select('started_at, duration_min, workout_type, intensity, kcal_burned')
+    .eq('user_id', userId)
+    .gte('started_at', start.toISOString())
+    .order('started_at', { ascending: false })
+  return (data as WorkoutRow[]) ?? []
+}
+
+async function loadWeekSleep(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<SleepRow[]> {
+  const start = new Date()
+  start.setDate(start.getDate() - 6)
+  const startDate = start.toISOString().slice(0, 10)
+  const { data } = await supabase
+    .from('sleep_entries')
+    .select('sleep_date, hours, quality')
+    .eq('user_id', userId)
+    .gte('sleep_date', startDate)
+    .order('sleep_date', { ascending: false })
+  return (data as SleepRow[]) ?? []
 }
 
 // --------------------------------------------------------------
