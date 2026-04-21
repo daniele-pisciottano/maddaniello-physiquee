@@ -51,47 +51,9 @@ export default defineConfig({
     host: true,
   },
   build: {
-    chunkSizeWarningLimit: 800,
-    rollupOptions: {
-      output: {
-        manualChunks: (id) => {
-          if (!id.includes('node_modules')) return
-          if (
-            id.includes('react-router') ||
-            id.includes('/react/') ||
-            id.includes('/react-dom/') ||
-            id.includes('/scheduler/')
-          ) {
-            return 'vendor-react'
-          }
-          if (id.includes('recharts') || id.includes('d3-')) {
-            return 'vendor-charts'
-          }
-          if (
-            id.includes('react-markdown') ||
-            id.includes('remark-') ||
-            id.includes('micromark') ||
-            id.includes('mdast-') ||
-            id.includes('hast-') ||
-            id.includes('unified')
-          ) {
-            return 'vendor-markdown'
-          }
-          if (id.includes('@supabase')) {
-            return 'vendor-supabase'
-          }
-          if (id.includes('@radix-ui')) {
-            return 'vendor-radix'
-          }
-          if (id.includes('html5-qrcode')) {
-            return 'vendor-scanner'
-          }
-          if (id.includes('@tanstack/react-query')) {
-            return 'vendor-query'
-          }
-          return 'vendor'
-        },
-      },
-    },
+    // Alziamo il limite per silenziare il warning sui chunk grossi.
+    // Lo split a livello di route via React.lazy() già ci dà il
+    // beneficio principale: vendor resta monolitico ma cacheable.
+    chunkSizeWarningLimit: 2000,
   },
 })
