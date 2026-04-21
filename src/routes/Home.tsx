@@ -1,6 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { format, parseISO } from 'date-fns'
+import {
+  format,
+  parseISO,
+  isSameDay,
+  addDays,
+  subDays,
+} from 'date-fns'
 import { it } from 'date-fns/locale'
 import { toast } from 'sonner'
 import {
@@ -16,6 +22,9 @@ import {
   Dumbbell,
   Pill,
   Check,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useProfile } from '@/features/profile/useProfile'
@@ -28,7 +37,7 @@ import { useReviewStatus } from '@/features/reviews/useReviews'
 import { useWorkouts } from '@/features/training/useWorkouts'
 import {
   useLogSupplement,
-  useSupplementLogToday,
+  useSupplementLogForDate,
   useSupplements,
   type Supplement,
 } from '@/features/training/useSupplements'
@@ -37,25 +46,51 @@ import { QuickWeighDialog } from '@/components/QuickWeighDialog'
 import { cn } from '@/lib/utils'
 import { round0 } from '@/lib/macro'
 
+function toLocalDateStr(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 export function Home() {
   const { user } = useAuth()
   const { data: profile } = useProfile()
   const { data: measurements } = useMeasurements()
-  const { data: todayMeals = [] } = useMealsForDate(new Date())
 
-  const totals = useMemo(() => sumMealTotals(todayMeals), [todayMeals])
+  // Data selezionata per la dashboard (default: oggi). Tutte le card sono
+  // allineate a questa data. Banner e onboarding appaiono solo per oggi.
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date())
+  const isToday = isSameDay(selectedDate, new Date())
+  const dateInputRef = useRef<HTMLInputElement>(null)
 
-  const latest = measurements?.[0]
-  const previous = measurements?.[1]
+  const { data: dayMeals = [] } = useMealsForDate(selectedDate)
+  const totals = useMemo(() => sumMealTotals(dayMeals), [dayMeals])
+
+  // Peso "as of" la data selezionata: prima misura con measured_at <= selectedDate.
+  // measurements è ordinato desc per measured_at.
+  const selectedDateStr = toLocalDateStr(selectedDate)
+  const measurementAsOf = useMemo(() => {
+    if (!measurements?.length) return null
+    return measurements.find((m) => m.measured_at <= selectedDateStr) ?? null
+  }, [measurements, selectedDateStr])
+  // Misura precedente a quella as-of (per calcolare il delta)
+  const measurementBeforeAsOf = useMemo(() => {
+    if (!measurements?.length || !measurementAsOf) return null
+    const idx = measurements.findIndex((m) => m.id === measurementAsOf.id)
+    return measurements[idx + 1] ?? null
+  }, [measurements, measurementAsOf])
+
+  const latestGlobal = measurements?.[0] ?? null // la più recente in assoluto
   const weightDelta =
-    latest?.weight_kg != null && previous?.weight_kg != null
-      ? Number(latest.weight_kg) - Number(previous.weight_kg)
+    measurementAsOf?.weight_kg != null &&
+    measurementBeforeAsOf?.weight_kg != null
+      ? Number(measurementAsOf.weight_kg) -
+        Number(measurementBeforeAsOf.weight_kg)
       : null
 
   const hasGoal = profile?.goal_weight_kg != null
   const weightToGoal =
-    hasGoal && latest?.weight_kg != null
-      ? Number(profile.goal_weight_kg) - Number(latest.weight_kg)
+    hasGoal && measurementAsOf?.weight_kg != null
+      ? Number(profile.goal_weight_kg) - Number(measurementAsOf.weight_kg)
       : null
 
   const hasTargets =
@@ -64,10 +99,11 @@ export function Home() {
     profile?.target_carb_g != null ||
     profile?.target_fat_g != null
 
+  // Reminder "ripesati" basato sempre su oggi, non sulla data selezionata
   const daysSinceLastWeigh =
-    latest?.measured_at != null
+    latestGlobal?.measured_at != null
       ? Math.floor(
-          (Date.now() - new Date(latest.measured_at).getTime()) /
+          (Date.now() - new Date(latestGlobal.measured_at).getTime()) /
             (1000 * 60 * 60 * 24),
         )
       : null
@@ -75,14 +111,15 @@ export function Home() {
   const reviewStatus = useReviewStatus()
   const [quickWeighOpen, setQuickWeighOpen] = useState(false)
 
-  const { data: todayWorkouts = [] } = useWorkouts(20)
-  const todayWorkoutsFiltered = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10)
-    return todayWorkouts.filter((w) => w.started_at.slice(0, 10) === todayStr)
-  }, [todayWorkouts])
-  const todayWorkoutStats = useMemo(() => {
-    if (todayWorkoutsFiltered.length === 0) return null
-    return todayWorkoutsFiltered.reduce(
+  const { data: allRecentWorkouts = [] } = useWorkouts(60)
+  const dayWorkouts = useMemo(() => {
+    return allRecentWorkouts.filter(
+      (w) => w.started_at.slice(0, 10) === selectedDateStr,
+    )
+  }, [allRecentWorkouts, selectedDateStr])
+  const dayWorkoutStats = useMemo(() => {
+    if (dayWorkouts.length === 0) return null
+    return dayWorkouts.reduce(
       (acc, w) => ({
         count: acc.count + 1,
         duration: acc.duration + w.duration_min,
@@ -90,23 +127,31 @@ export function Home() {
       }),
       { count: 0, duration: 0, kcal: 0 },
     )
-  }, [todayWorkoutsFiltered])
+  }, [dayWorkouts])
 
   const { data: supplementsList = [] } = useSupplements()
-  const { data: supplementsToday = [] } = useSupplementLogToday()
+  const { data: supplementsForDay = [] } = useSupplementLogForDate(selectedDate)
   const logSupp = useLogSupplement()
   const activeSupps = supplementsList.filter((s) => s.active)
   const loggedIds = new Set(
-    supplementsToday.map((l) => l.supplement_id).filter(Boolean) as string[],
+    supplementsForDay.map((l) => l.supplement_id).filter(Boolean) as string[],
   )
 
   async function handleQuickLogSupp(s: Supplement) {
     try {
+      // Se viewing past, imposta taken_at a mezzogiorno di quel giorno.
+      let takenAt: string | undefined
+      if (!isToday) {
+        const d = new Date(selectedDate)
+        d.setHours(12, 0, 0, 0)
+        takenAt = d.toISOString()
+      }
       await logSupp.mutateAsync({
         supplement_id: s.id,
         supplement_name: s.name,
         dose: s.dose,
         unit: s.unit,
+        taken_at: takenAt,
       })
       toast.success(`${s.name} loggato`)
     } catch (err) {
@@ -116,7 +161,7 @@ export function Home() {
 
   // Numero di pasti tracciati = quanti meal_types distinti con >= 1 entry
   const distinctMealTypesTracked = new Set(
-    todayMeals.map((m) => m.meal_type),
+    dayMeals.map((m) => m.meal_type),
   ).size
 
   const targets = {
@@ -135,18 +180,85 @@ export function Home() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">
-          Oggi · {format(new Date(), 'EEEE d MMMM', { locale: it })}
-        </p>
-        <h2 className="mt-1 font-mono text-3xl font-semibold tracking-tight">
-          Ciao.
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">{user?.email}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            Dashboard
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              const el = dateInputRef.current
+              if (!el) return
+              try {
+                if (typeof el.showPicker === 'function') el.showPicker()
+                else el.click()
+              } catch {
+                el.click()
+              }
+            }}
+            className="mt-1 flex items-center gap-2 rounded-md text-left font-mono text-2xl font-semibold tracking-tight transition-colors hover:text-primary sm:text-3xl"
+            title="Clicca per scegliere una data"
+          >
+            {isToday
+              ? 'Oggi'
+              : format(selectedDate, 'd MMMM yyyy', { locale: it })}
+            <CalendarDays className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <input
+            ref={dateInputRef}
+            type="date"
+            value={selectedDateStr}
+            onChange={(e) => {
+              const v = e.target.value
+              if (!v) return
+              const [y, m, d] = v.split('-').map(Number)
+              setSelectedDate(new Date(y, m - 1, d))
+            }}
+            className="sr-only"
+            aria-label="Scegli data"
+          />
+          <p className="mt-1 text-sm text-muted-foreground">
+            {format(selectedDate, 'EEEE', { locale: it })}
+            {' · '}
+            <span className="text-xs">{user?.email}</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => setSelectedDate((d) => subDays(d, 1))}
+            aria-label="Giorno precedente"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          {!isToday && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedDate(new Date())}
+            >
+              Oggi
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => setSelectedDate((d) => addDays(d, 1))}
+            aria-label="Giorno successivo"
+            disabled={isToday}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* Review banner — priorità massima se presente */}
-      {reviewStatus.hasPendingAction && reviewStatus.latest && (
+      {/* Review banner — priorità massima se presente, solo su today */}
+      {isToday && reviewStatus.hasPendingAction && reviewStatus.latest && (
         <div className="rounded-lg border border-warning/40 bg-warning/10 p-4">
           <div className="flex items-start gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-warning/20">
@@ -167,7 +279,8 @@ export function Home() {
         </div>
       )}
 
-      {!reviewStatus.hasPendingAction &&
+      {isToday &&
+        !reviewStatus.hasPendingAction &&
         reviewStatus.dueForNewReview &&
         hasGoal &&
         hasTargets && (
@@ -220,20 +333,28 @@ export function Home() {
         />
       </div>
 
-      {/* Peso */}
+      {/* Peso — as of data selezionata */}
       <WeightRow
-        weight={latest?.weight_kg != null ? Number(latest.weight_kg) : null}
+        weight={
+          measurementAsOf?.weight_kg != null
+            ? Number(measurementAsOf.weight_kg)
+            : null
+        }
         delta={weightDelta}
-        measuredAt={latest?.measured_at ?? null}
+        measuredAt={measurementAsOf?.measured_at ?? null}
         goal={
-          profile?.goal_weight_kg != null ? Number(profile.goal_weight_kg) : null
+          profile?.goal_weight_kg != null
+            ? Number(profile.goal_weight_kg)
+            : null
         }
         toGoal={weightToGoal}
         onQuickWeigh={() => setQuickWeighOpen(true)}
       />
 
-      {/* Next action / onboarding */}
-      {!profile?.height_cm || !profile?.sex ? (
+      {/* Onboarding + reminder: solo quando stai guardando OGGI.
+          Se stai navigando un giorno passato, questi non si mostrano
+          (staresti guardando uno stato storico). */}
+      {isToday && (!profile?.height_cm || !profile?.sex) ? (
         <OnboardCard
           title="Completa l'assessment iniziale"
           description="Un flusso guidato in 5 passaggi per configurare profilo, obiettivo, misure e target."
@@ -241,7 +362,7 @@ export function Home() {
           cta="Avvia assessment"
           icon={Sparkles}
         />
-      ) : !hasTargets ? (
+      ) : isToday && !hasTargets ? (
         <OnboardCard
           title="Imposta i target giornalieri"
           description="Definisci kcal e macro (calcolati in un click) per vedere quanto ti manca ogni giorno."
@@ -249,14 +370,16 @@ export function Home() {
           cta="Vai ai target"
           icon={Target}
         />
-      ) : !latest ? (
+      ) : isToday && !latestGlobal ? (
         <OnboardCard
           title="Aggiungi la prima misura"
           description="Profilo ok. Inserisci peso (e body fat) per iniziare a tracciare l'andamento."
           to="/settings"
           cta="Aggiungi misura"
         />
-      ) : daysSinceLastWeigh != null && daysSinceLastWeigh >= 7 ? (
+      ) : isToday &&
+        daysSinceLastWeigh != null &&
+        daysSinceLastWeigh >= 7 ? (
         <div className="rounded-lg border border-border bg-card p-5">
           <h3 className="text-sm font-semibold">È ora di ripesarti</h3>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -273,7 +396,7 @@ export function Home() {
             Pesati ora
           </Button>
         </div>
-      ) : todayMeals.length === 0 ? (
+      ) : isToday && dayMeals.length === 0 ? (
         <OnboardCard
           title="Logga il primo pasto di oggi"
           description="Scansiona un barcode, cerca un alimento o inserisci manualmente."
@@ -281,19 +404,25 @@ export function Home() {
           cta="Vai ai pasti"
           icon={Utensils}
         />
+      ) : dayMeals.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border p-5 text-center">
+          <p className="text-sm text-muted-foreground">
+            Nessun pasto tracciato in questo giorno.
+          </p>
+        </div>
       ) : (
         <div className="rounded-lg border border-border bg-card p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold">
-                {distinctMealTypesTracked}/4 pasti tracciati oggi
+                {distinctMealTypesTracked}/4 pasti tracciati{isToday ? ' oggi' : ''}
               </h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                {todayMeals.length}{' '}
-                {todayMeals.length === 1 ? 'voce' : 'voci'} loggate · ultima:{' '}
-                {format(parseISO(todayMeals[todayMeals.length - 1].eaten_at), 'HH:mm')}
+                {dayMeals.length}{' '}
+                {dayMeals.length === 1 ? 'voce' : 'voci'} loggate · ultima:{' '}
+                {format(parseISO(dayMeals[dayMeals.length - 1].eaten_at), 'HH:mm')}
                 {' · '}
-                {todayMeals[todayMeals.length - 1].food_name}
+                {dayMeals[dayMeals.length - 1].food_name}
               </p>
             </div>
             <Button asChild variant="outline" size="sm">
@@ -315,17 +444,21 @@ export function Home() {
                 <Dumbbell className="h-4 w-4 text-primary" />
               </div>
               <div>
-                <h3 className="text-sm font-semibold">Training oggi</h3>
+                <h3 className="text-sm font-semibold">
+                  Training{isToday ? ' oggi' : ''}
+                </h3>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {todayWorkoutStats
-                    ? `${todayWorkoutStats.count} ${todayWorkoutStats.count === 1 ? 'sessione' : 'sessioni'} · ${todayWorkoutStats.duration} min${todayWorkoutStats.kcal > 0 ? ` · ~${round0(todayWorkoutStats.kcal)} kcal bruciate` : ''}`
-                    : 'Nessuna sessione registrata'}
+                  {dayWorkoutStats
+                    ? `${dayWorkoutStats.count} ${dayWorkoutStats.count === 1 ? 'sessione' : 'sessioni'} · ${dayWorkoutStats.duration} min${dayWorkoutStats.kcal > 0 ? ` · ~${round0(dayWorkoutStats.kcal)} kcal bruciate` : ''}`
+                    : isToday
+                      ? 'Nessuna sessione registrata'
+                      : 'Nessuna sessione questo giorno'}
                 </p>
               </div>
             </div>
             <Button asChild variant="outline" size="sm">
               <Link to="/training">
-                {todayWorkoutStats ? 'Dettagli' : 'Logga'}
+                {dayWorkoutStats ? 'Dettagli' : 'Logga'}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
@@ -341,9 +474,12 @@ export function Home() {
               <Pill className="h-4 w-4 text-primary" />
             </div>
             <div className="flex-1">
-              <h3 className="text-sm font-semibold">Integratori oggi</h3>
+              <h3 className="text-sm font-semibold">
+                Integratori{isToday ? ' oggi' : ''}
+              </h3>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {loggedIds.size}/{activeSupps.length} presi · tocca per loggare
+                {!isToday && ' in questo giorno'}
               </p>
             </div>
           </div>

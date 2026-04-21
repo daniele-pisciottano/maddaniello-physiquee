@@ -136,6 +136,31 @@ export function useSupplementLogToday() {
   })
 }
 
+// Log integratori per una data specifica (Home permette di navigare i giorni)
+export function useSupplementLogForDate(date: Date) {
+  const { user } = useAuth()
+  const dayKey = date.toISOString().slice(0, 10)
+  return useQuery({
+    queryKey: ['supplement-log', user?.id, 'date', dayKey],
+    queryFn: async () => {
+      const start = new Date(date)
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(date)
+      end.setHours(23, 59, 59, 999)
+      const { data, error } = await supabase
+        .from('supplement_log')
+        .select('*')
+        .eq('user_id', user!.id)
+        .gte('taken_at', start.toISOString())
+        .lte('taken_at', end.toISOString())
+        .order('taken_at', { ascending: false })
+      if (error) throw error
+      return (data ?? []) as SupplementLogEntry[]
+    },
+    enabled: !!user,
+  })
+}
+
 export function useSupplementLogRecent(limit: number = 30) {
   const { user } = useAuth()
   return useQuery({
