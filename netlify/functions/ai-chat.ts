@@ -98,8 +98,31 @@ export const handler: Handler = async (event) => {
     content: userContent,
   })
 
-  // 5. Costruisci contesto fresco
-  const contextBlock = await buildContext(supabase, userId)
+  // 5. Costruisci contesto fresco (inclusa retrieval RAG se abbiamo key OpenAI)
+  let openAiKeyForEmbedding: string | undefined
+  if (provider === 'openai') {
+    openAiKeyForEmbedding = apiKey
+  } else {
+    // Prova a leggere la key OpenAI separata (se configurata)
+    const { data: openaiCred } = await supabase
+      .from('ai_credentials')
+      .select('encrypted_key')
+      .eq('user_id', userId)
+      .eq('provider', 'openai')
+      .maybeSingle()
+    if (openaiCred) {
+      try {
+        openAiKeyForEmbedding = decrypt(openaiCred.encrypted_key)
+      } catch {
+        /* ignora: RAG disabilitato se non decifrabile */
+      }
+    }
+  }
+
+  const contextBlock = await buildContext(supabase, userId, {
+    queryText: userContent,
+    openAiKey: openAiKeyForEmbedding,
+  })
 
   // 6. Carica storico (escludendo il messaggio appena inserito per evitare duplicati)
   const { data: history } = await supabase

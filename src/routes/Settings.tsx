@@ -6,6 +6,7 @@ import { DietaryRulesSection } from './settings/DietaryRulesSection'
 import { AiSection } from './settings/AiSection'
 import { SystemPromptSection } from './settings/SystemPromptSection'
 import { CorrectionsSection } from './settings/CorrectionsSection'
+import { KnowledgeSection } from './settings/KnowledgeSection'
 import { ExportSection } from './settings/ExportSection'
 import { DangerZoneSection } from './settings/DangerZoneSection'
 
@@ -31,6 +32,7 @@ export function Settings() {
       <AiSection />
       <SystemPromptSection />
       <CorrectionsSection />
+      <KnowledgeSection />
       <ExportSection />
       <DangerZoneSection />
     </div>

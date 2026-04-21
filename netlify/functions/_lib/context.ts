@@ -2,6 +2,7 @@
 // Viene ricostruito ad ogni chat call (profilo/pasti/regole cambiano).
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { embedTexts } from './embeddings'
 
 type Profile = {
   sex: 'male' | 'female' | 'other' | null
@@ -63,6 +64,13 @@ type SleepRow = {
 export async function buildContext(
   supabase: SupabaseClient,
   userId: string,
+  opts?: {
+    // Se fornito, tenta retrieval RAG dalla knowledge base usando
+    // queryText come query (embedding + pgvector match). Richiede
+    // openAiKey per calcolare l'embedding.
+    queryText?: string
+    openAiKey?: string
+  },
 ): Promise<string> {
   const [
     profile,
@@ -73,6 +81,7 @@ export async function buildContext(
     corrections,
     weekWorkouts,
     weekSleep,
+    knowledgeHits,
   ] = await Promise.all([
     loadProfile(supabase, userId),
     loadLatestMeasurement(supabase, userId),
@@ -82,6 +91,7 @@ export async function buildContext(
     loadActiveCorrections(supabase, userId),
     loadWeekWorkouts(supabase, userId),
     loadWeekSleep(supabase, userId),
+    retrieveKnowledge(supabase, userId, opts),
   ])
 
   const parts: string[] = []
@@ -248,6 +258,19 @@ export async function buildContext(
     }
   }
 
+  // --- Knowledge base (RAG) ---
+  if (knowledgeHits.length > 0) {
+    parts.push('## Knowledge base — passaggi rilevanti')
+    parts.push(
+      "Questi estratti vengono dai documenti che hai caricato. Usali come fonte primaria quando pertinenti, citando il titolo del documento.",
+    )
+    for (const h of knowledgeHits) {
+      parts.push(
+        `### da "${h.doc_title}" (similarity ${(h.similarity * 100).toFixed(0)}%)\n${h.chunk_text}`,
+      )
+    }
+  }
+
   return parts.join('\n\n')
 }
 
@@ -358,6 +381,45 @@ async function loadWeekWorkouts(
     .gte('started_at', start.toISOString())
     .order('started_at', { ascending: false })
   return (data as WorkoutRow[]) ?? []
+}
+
+type KnowledgeHit = {
+  doc_id: string
+  chunk_text: string
+  similarity: number
+  doc_title: string
+}
+
+async function retrieveKnowledge(
+  supabase: SupabaseClient,
+  userId: string,
+  opts?: { queryText?: string; openAiKey?: string },
+): Promise<KnowledgeHit[]> {
+  if (!opts?.queryText || !opts.openAiKey) return []
+  const query = opts.queryText.trim().slice(0, 2000)
+  if (!query) return []
+
+  try {
+    // Embed la query
+    const { embeddings } = await embedTexts(opts.openAiKey, [query])
+    if (!embeddings[0]) return []
+
+    // Similarity search via RPC
+    const { data, error } = await supabase.rpc('match_knowledge_chunks', {
+      query_embedding: embeddings[0],
+      match_user_id: userId,
+      match_threshold: 0.25,
+      match_count: 3,
+    })
+    if (error) {
+      console.error('match_knowledge_chunks error:', error.message)
+      return []
+    }
+    return (data ?? []) as KnowledgeHit[]
+  } catch (err) {
+    console.error('retrieveKnowledge failed:', err)
+    return []
+  }
 }
 
 async function loadWeekSleep(
