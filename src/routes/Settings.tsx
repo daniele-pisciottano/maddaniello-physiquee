@@ -2,8 +2,10 @@ import { ProfileSection } from './settings/ProfileSection'
 import { GoalSection } from './settings/GoalSection'
 import { TargetsSection } from './settings/TargetsSection'
 import { MeasurementsSection } from './settings/MeasurementsSection'
+import { DietaryRulesSection } from './settings/DietaryRulesSection'
 import { AiSection } from './settings/AiSection'
 import { SystemPromptSection } from './settings/SystemPromptSection'
+import { CorrectionsSection } from './settings/CorrectionsSection'
 import { ExportSection } from './settings/ExportSection'
 
 export function Settings() {
@@ -24,8 +26,10 @@ export function Settings() {
       <GoalSection />
       <TargetsSection />
       <MeasurementsSection />
+      <DietaryRulesSection />
       <AiSection />
       <SystemPromptSection />
+      <CorrectionsSection />
       <ExportSection />
     </div>
   )

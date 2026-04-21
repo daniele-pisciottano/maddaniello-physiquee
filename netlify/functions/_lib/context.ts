@@ -357,7 +357,11 @@ function sumMeals(meals: MealEntry[]) {
 
 function formatRule(r: DietaryRule): string {
   const val = r.rule_value as Record<string, unknown>
-  const target = (val.food_tag as string) || (val.ingredient as string) || '?'
+  const target =
+    (val.target as string) ||
+    (val.food_tag as string) ||
+    (val.ingredient as string) ||
+    '?'
   const n = val.value ?? val.count ?? '?'
   const notes = r.notes ? ` (${r.notes})` : ''
   switch (r.rule_type) {

@@ -10,6 +10,7 @@ import {
   Trash2,
   Loader2,
   MessageCircle,
+  BookMarked,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Textarea'
@@ -20,6 +21,7 @@ import {
   useSendChatMessage,
   type ChatMessageRow,
 } from '@/features/ai/useChat'
+import { QuickMemoryDialog } from './chat/QuickMemoryDialog'
 
 const SUGGESTIONS = [
   'Cosa posso mangiare a cena stasera?',
@@ -35,6 +37,7 @@ export function Chat() {
   const send = useSendChatMessage()
   const clear = useClearChat()
   const [input, setInput] = useState('')
+  const [memoryOpen, setMemoryOpen] = useState(false)
   const listRef = useRef<HTMLDivElement>(null)
 
   const lastMsg = messages[messages.length - 1]
@@ -88,18 +91,30 @@ export function Chat() {
             Chat AI
           </h2>
         </div>
-        {messages.length > 0 && (
+        <div className="flex items-center gap-1">
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            onClick={handleClear}
-            disabled={clear.isPending}
+            onClick={() => setMemoryOpen(true)}
+            title="Aggiungi regola o correzione alla memoria AI"
           >
-            <Trash2 className="h-3.5 w-3.5" />
-            Pulisci
+            <BookMarked className="h-3.5 w-3.5" />
+            Ricorda
           </Button>
-        )}
+          {messages.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleClear}
+              disabled={clear.isPending}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Pulisci
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Messages list */}
@@ -149,6 +164,8 @@ export function Chat() {
         L'AI vede profilo, target, pasti di oggi e settimana, regole alimentari,
         correzioni apprese. Risponde in base al tuo system prompt attivo.
       </p>
+
+      <QuickMemoryDialog open={memoryOpen} onOpenChange={setMemoryOpen} />
     </div>
   )
 }
