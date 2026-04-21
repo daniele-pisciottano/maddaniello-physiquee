@@ -23,6 +23,8 @@ type Measurement = {
   measured_at: string
   weight_kg: number | null
   body_fat_pct: number | null
+  body_fat_scale_pct: number | null
+  body_fat_visual_pct: number | null
 }
 
 type MealEntry = {
@@ -120,7 +122,17 @@ export async function buildContext(
     if (latestMeasurement?.weight_kg != null) {
       p.push(`peso ${Number(latestMeasurement.weight_kg)} kg`)
     }
-    if (latestMeasurement?.body_fat_pct != null) {
+    if (latestMeasurement?.body_fat_visual_pct != null) {
+      p.push(`body fat visuale ${Number(latestMeasurement.body_fat_visual_pct)}%`)
+    }
+    if (latestMeasurement?.body_fat_scale_pct != null) {
+      p.push(`body fat bilancia ${Number(latestMeasurement.body_fat_scale_pct)}%`)
+    }
+    if (
+      latestMeasurement?.body_fat_visual_pct == null &&
+      latestMeasurement?.body_fat_scale_pct == null &&
+      latestMeasurement?.body_fat_pct != null
+    ) {
       p.push(`body fat ${Number(latestMeasurement.body_fat_pct)}%`)
     }
     if (p.length > 0) {
@@ -333,7 +345,9 @@ async function loadLatestMeasurement(
 ): Promise<Measurement | null> {
   const { data } = await supabase
     .from('measurements')
-    .select('measured_at, weight_kg, body_fat_pct')
+    .select(
+      'measured_at, weight_kg, body_fat_pct, body_fat_scale_pct, body_fat_visual_pct',
+    )
     .eq('user_id', userId)
     .order('measured_at', { ascending: false })
     .limit(1)

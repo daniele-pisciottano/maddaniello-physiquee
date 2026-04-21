@@ -17,6 +17,8 @@ export type Measurement = {
   measured_at: string // YYYY-MM-DD
   weight_kg: number | null
   body_fat_pct: number | null
+  body_fat_scale_pct: number | null
+  body_fat_visual_pct: number | null
   circumferences: Circumferences
   notes: string | null
   created_at: string
@@ -26,6 +28,8 @@ export type MeasurementInput = {
   measured_at: string
   weight_kg?: number | null
   body_fat_pct?: number | null
+  body_fat_scale_pct?: number | null
+  body_fat_visual_pct?: number | null
   circumferences?: Circumferences
   notes?: string | null
 }
@@ -58,8 +62,17 @@ export function useAddMeasurement() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (input: MeasurementInput) => {
+      // body_fat_pct canonico: preferisce visuale (più stabile), fallback scale.
+      // Se il caller specifica direttamente body_fat_pct, lo rispettiamo.
+      const bfCanonical =
+        input.body_fat_pct ??
+        input.body_fat_visual_pct ??
+        input.body_fat_scale_pct ??
+        null
+
       const { error } = await supabase.from('measurements').insert({
         ...input,
+        body_fat_pct: bfCanonical,
         user_id: user!.id,
         circumferences: input.circumferences ?? {},
       })

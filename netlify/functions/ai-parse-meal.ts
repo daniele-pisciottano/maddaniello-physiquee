@@ -131,6 +131,9 @@ export const handler: Handler = async (event) => {
 Parsi la descrizione italiana di un pasto in un JSON con le singole voci. Per ognuna stima nome, grammi (se non specificato, porzione standard plausibile), kcal, protein_g, carb_g, fat_g TOTALI per la quantità (NON per 100g).
 
 Regole:
+- **CRUDO DI DEFAULT**: quando l'utente dà un peso senza specificare "cotto/cotta", "dopo cottura", "bollito", "grigliato già pronto", ecc., il peso si intende SEMPRE DA CRUDO per alimenti che cambiano peso con la cottura. Esempi: "100g di riso" = 100g crudo (circa 360 kcal, 78g carbo, 7g proteine), "200g di pasta" = 200g cruda (~720 kcal), "150g petto di pollo" = 150g crudo (~165 kcal). Usa valori RAW di default, convertendo le kcal/macro sulla base del peso crudo.
+- Se l'utente specifica esplicitamente che è cotto (es. "100g di riso cotto", "dopo cottura", "lessato"), allora usa i valori da cotto.
+- Alimenti che non cambiano peso con la cottura (pane, frutta, yogurt, latte, biscotti, formaggi, ecc.) ovviamente si interpretano così come sono.
 - Se una voce corrisponde a un alimento nella lista "ALIMENTI CONOSCIUTI", imposta matched_food_id con il suo id e usa i SUOI macro per 100g scalati sui grammi stimati (più accurato).
 - Se la voce non corrisponde a nessun conosciuto, stima tu e lascia matched_food_id a null.
 - Se quantità è vaga ("un po'", "qualche"), stima una porzione standard sensata.

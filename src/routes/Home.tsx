@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
@@ -22,6 +22,7 @@ import {
 } from '@/features/meals/useMeals'
 import { useReviewStatus } from '@/features/reviews/useReviews'
 import { Button } from '@/components/ui/Button'
+import { QuickWeighDialog } from '@/components/QuickWeighDialog'
 import { cn } from '@/lib/utils'
 import { round0 } from '@/lib/macro'
 
@@ -61,6 +62,7 @@ export function Home() {
       : null
 
   const reviewStatus = useReviewStatus()
+  const [quickWeighOpen, setQuickWeighOpen] = useState(false)
 
   const targets = {
     kcal: profile?.target_kcal ?? null,
@@ -172,6 +174,7 @@ export function Home() {
           profile?.goal_weight_kg != null ? Number(profile.goal_weight_kg) : null
         }
         toGoal={weightToGoal}
+        onQuickWeigh={() => setQuickWeighOpen(true)}
       />
 
       {/* Next action / onboarding */}
@@ -199,13 +202,22 @@ export function Home() {
           cta="Aggiungi misura"
         />
       ) : daysSinceLastWeigh != null && daysSinceLastWeigh >= 7 ? (
-        <OnboardCard
-          title="È ora di ripesarti"
-          description={`Sono passati ${daysSinceLastWeigh} giorni dall'ultima misurazione. I dati freschi rendono le review AI più accurate.`}
-          to="/settings"
-          cta="Aggiungi misura"
-          icon={Scale}
-        />
+        <div className="rounded-lg border border-border bg-card p-5">
+          <h3 className="text-sm font-semibold">È ora di ripesarti</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Sono passati {daysSinceLastWeigh} giorni dall'ultima misurazione.
+            I dati freschi rendono le review AI più accurate.
+          </p>
+          <Button
+            type="button"
+            className="mt-4"
+            size="sm"
+            onClick={() => setQuickWeighOpen(true)}
+          >
+            <Scale className="h-4 w-4" />
+            Pesati ora
+          </Button>
+        </div>
       ) : todayMeals.length === 0 ? (
         <OnboardCard
           title="Logga il primo pasto di oggi"
@@ -237,6 +249,11 @@ export function Home() {
           </div>
         </div>
       )}
+
+      <QuickWeighDialog
+        open={quickWeighOpen}
+        onOpenChange={setQuickWeighOpen}
+      />
     </div>
   )
 }
@@ -342,12 +359,14 @@ function WeightRow({
   measuredAt,
   goal,
   toGoal,
+  onQuickWeigh,
 }: {
   weight: number | null
   delta: number | null
   measuredAt: string | null
   goal: number | null
   toGoal: number | null
+  onQuickWeigh: () => void
 }) {
   return (
     <div className="rounded-lg border border-border bg-card p-5">
@@ -370,6 +389,23 @@ function WeightRow({
               ? format(parseISO(measuredAt), 'd MMM yyyy', { locale: it })
               : 'Nessuna misura'}
           </p>
+          <div className="mt-3 flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onQuickWeigh}
+            >
+              <Scale className="h-3.5 w-3.5" />
+              Pesati ora
+            </Button>
+            <Button asChild variant="ghost" size="sm">
+              <Link to="/andamento">
+                Andamento
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </div>
         </div>
         {goal != null && (
           <div className="text-right">

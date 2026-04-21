@@ -42,7 +42,11 @@ const schema = z.object({
     .union([z.coerce.number().min(20).max(400), z.literal('')])
     .transform((v) => (v === '' ? null : v))
     .nullable(),
-  body_fat_pct: z
+  body_fat_scale_pct: z
+    .union([z.coerce.number().min(3).max(60), z.literal('')])
+    .transform((v) => (v === '' ? null : v))
+    .nullable(),
+  body_fat_visual_pct: z
     .union([z.coerce.number().min(3).max(60), z.literal('')])
     .transform((v) => (v === '' ? null : v))
     .nullable(),
@@ -86,7 +90,8 @@ export function MeasurementsSection() {
     defaultValues: {
       measured_at: today(),
       weight_kg: null,
-      body_fat_pct: null,
+      body_fat_scale_pct: null,
+      body_fat_visual_pct: null,
       waist_cm: null,
       chest_cm: null,
       arm_cm: null,
@@ -122,7 +127,8 @@ export function MeasurementsSection() {
     const payload: MeasurementInput = {
       measured_at: values.measured_at,
       weight_kg: toNum(values.weight_kg),
-      body_fat_pct: toNum(values.body_fat_pct),
+      body_fat_scale_pct: toNum(values.body_fat_scale_pct),
+      body_fat_visual_pct: toNum(values.body_fat_visual_pct),
       circumferences: Object.fromEntries(
         Object.entries(circumferences).filter(([, v]) => v !== null),
       ),
@@ -134,7 +140,8 @@ export function MeasurementsSection() {
       form.reset({
         measured_at: today(),
         weight_kg: null,
-        body_fat_pct: null,
+        body_fat_scale_pct: null,
+        body_fat_visual_pct: null,
         waist_cm: null,
         chest_cm: null,
         arm_cm: null,
@@ -232,7 +239,7 @@ export function MeasurementsSection() {
         {/* Form aggiunta */}
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="grid gap-4 sm:grid-cols-3"
+          className="grid gap-4 sm:grid-cols-2"
         >
           <div className="space-y-2">
             <Label htmlFor="measured_at">Data</Label>
@@ -250,17 +257,36 @@ export function MeasurementsSection() {
               step="0.1"
               placeholder="es. 75.3"
               {...form.register('weight_kg')}
+              className="font-mono"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="body_fat_pct">Body fat (%)</Label>
+            <Label htmlFor="body_fat_scale_pct">BF bilancia (%)</Label>
             <Input
-              id="body_fat_pct"
+              id="body_fat_scale_pct"
               type="number"
               step="0.1"
-              placeholder="es. 16"
-              {...form.register('body_fat_pct')}
+              placeholder="es. 16.5"
+              {...form.register('body_fat_scale_pct')}
+              className="font-mono"
             />
+            <p className="text-[10px] text-muted-foreground">
+              Letto dalla bilancia bioimpedenziometrica
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="body_fat_visual_pct">BF visuale (%)</Label>
+            <Input
+              id="body_fat_visual_pct"
+              type="number"
+              step="0.1"
+              placeholder="es. 14"
+              {...form.register('body_fat_visual_pct')}
+              className="font-mono"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Stima da specchio / foto / chart visivi
+            </p>
           </div>
 
           {expanded && (
@@ -370,12 +396,26 @@ export function MeasurementsSection() {
                             {m.weight_kg} kg
                           </span>
                         )}
-                        {m.body_fat_pct !== null && (
+                        {m.body_fat_visual_pct !== null && (
                           <span>
-                            <span className="text-muted-foreground">bf </span>
-                            {m.body_fat_pct}%
+                            <span className="text-muted-foreground">bf vis </span>
+                            {m.body_fat_visual_pct}%
                           </span>
                         )}
+                        {m.body_fat_scale_pct !== null && (
+                          <span>
+                            <span className="text-muted-foreground">bf bil </span>
+                            {m.body_fat_scale_pct}%
+                          </span>
+                        )}
+                        {m.body_fat_visual_pct === null &&
+                          m.body_fat_scale_pct === null &&
+                          m.body_fat_pct !== null && (
+                            <span>
+                              <span className="text-muted-foreground">bf </span>
+                              {m.body_fat_pct}%
+                            </span>
+                          )}
                         {Object.entries(m.circumferences ?? {}).map(
                           ([k, v]) =>
                             v != null && (
