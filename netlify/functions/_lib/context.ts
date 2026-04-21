@@ -61,6 +61,15 @@ type SleepRow = {
   quality: number | null
 }
 
+type MealPlanRow = {
+  meal_type: string
+  slot_label: string
+  options: string[]
+  portion_hint: string | null
+  notes: string | null
+  position: number
+}
+
 export async function buildContext(
   supabase: SupabaseClient,
   userId: string,
@@ -81,6 +90,7 @@ export async function buildContext(
     corrections,
     weekWorkouts,
     weekSleep,
+    mealPlan,
     knowledgeHits,
   ] = await Promise.all([
     loadProfile(supabase, userId),
@@ -91,6 +101,7 @@ export async function buildContext(
     loadActiveCorrections(supabase, userId),
     loadWeekWorkouts(supabase, userId),
     loadWeekSleep(supabase, userId),
+    loadMealPlan(supabase, userId),
     retrieveKnowledge(supabase, userId, opts),
   ])
 
@@ -240,6 +251,31 @@ export async function buildContext(
     parts.push(
       `Media: ${avg.toFixed(1)}h${qualityAvg > 0 ? ` · qualità ${qualityAvg.toFixed(1)}/5` : ''} · ${weekSleep.length} notti tracciate`,
     )
+  }
+
+  // --- Piano alimentare (alimenti previsti per pasto) ---
+  if (mealPlan.length > 0) {
+    parts.push('## Piano alimentare (alimenti previsti per pasto)')
+    parts.push(
+      "Queste sono le scelte abituali/previste dell'utente. Usale come prima fonte quando suggerisci un pasto: propone combinazioni di queste alternative rispettando macro e regole. Cambia opzione se aiuta la varietà settimanale.",
+    )
+    const byMeal = new Map<string, MealPlanRow[]>()
+    for (const s of mealPlan) {
+      if (!byMeal.has(s.meal_type)) byMeal.set(s.meal_type, [])
+      byMeal.get(s.meal_type)!.push(s)
+    }
+    const order = ['breakfast', 'lunch', 'dinner', 'snack']
+    for (const mt of order) {
+      const slots = byMeal.get(mt)
+      if (!slots || slots.length === 0) continue
+      parts.push(`### ${labelMealType(mt)}`)
+      for (const s of slots.sort((a, b) => a.position - b.position)) {
+        const portion = s.portion_hint ? ` (${s.portion_hint})` : ''
+        const options = s.options.join(' | ')
+        const notes = s.notes ? ` — ${s.notes}` : ''
+        parts.push(`- **${s.slot_label}**${portion}: ${options}${notes}`)
+      }
+    }
   }
 
   // --- Regole dietetiche ---
@@ -420,6 +456,20 @@ async function retrieveKnowledge(
     console.error('retrieveKnowledge failed:', err)
     return []
   }
+}
+
+async function loadMealPlan(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<MealPlanRow[]> {
+  const { data } = await supabase
+    .from('meal_plan_slots')
+    .select('meal_type, slot_label, options, portion_hint, notes, position')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .order('meal_type')
+    .order('position')
+  return (data as MealPlanRow[]) ?? []
 }
 
 async function loadWeekSleep(

@@ -3,6 +3,7 @@ import { GoalSection } from './settings/GoalSection'
 import { TargetsSection } from './settings/TargetsSection'
 import { MeasurementsSection } from './settings/MeasurementsSection'
 import { DietaryRulesSection } from './settings/DietaryRulesSection'
+import { MealPlanSection } from './settings/MealPlanSection'
 import { AiSection } from './settings/AiSection'
 import { SystemPromptSection } from './settings/SystemPromptSection'
 import { CorrectionsSection } from './settings/CorrectionsSection'
@@ -29,6 +30,7 @@ export function Settings() {
       <TargetsSection />
       <MeasurementsSection />
       <DietaryRulesSection />
+      <MealPlanSection />
       <AiSection />
       <SystemPromptSection />
       <CorrectionsSection />
