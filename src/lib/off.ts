@@ -102,17 +102,34 @@ export async function offProductByBarcode(
 }
 
 export async function offSearch(query: string): Promise<OffFood[]> {
-  if (!query.trim()) return []
-  // V2 search API, localizzata in italiano
-  const url =
-    `${BASE}/api/v2/search` +
-    `?search_terms=${encodeURIComponent(query)}` +
-    `&lc=it` +
-    `&page_size=20` +
-    `&fields=${FIELDS}` +
-    // Priorità ai prodotti venduti in Italia (ma non li filtra hard)
-    `&sort_by=popularity_key`
-  const res = await fetch(url)
+  const q = query.trim()
+  if (!q) return []
+  // Usiamo l'endpoint legacy /cgi/search.pl che è più stabile e permissivo
+  // con query complesse (spazi, accenti). È quello che usa l'app ufficiale.
+  const params = new URLSearchParams({
+    search_terms: q,
+    search_simple: '1',
+    action: 'process',
+    json: '1',
+    lc: 'it',
+    page_size: '20',
+    fields: FIELDS,
+    sort_by: 'popularity_key',
+  })
+  const url = `${BASE}/cgi/search.pl?${params.toString()}`
+
+  let res: Response
+  try {
+    res = await fetch(url, {
+      headers: { Accept: 'application/json' },
+    })
+  } catch (err) {
+    throw new Error(
+      err instanceof Error
+        ? `OFF non raggiungibile: ${err.message}`
+        : 'OFF non raggiungibile',
+    )
+  }
   if (!res.ok) {
     throw new Error(`OFF search errore ${res.status}`)
   }

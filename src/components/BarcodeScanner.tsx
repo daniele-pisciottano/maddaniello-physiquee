@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { importWithReload } from '@/lib/lazy'
 
 type Props = {
   onDetected: (code: string) => void
@@ -47,9 +48,8 @@ export function BarcodeScanner({ onDetected, onError }: Props) {
     ;(async () => {
       try {
         setStatus('loading')
-        const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import(
-          'html5-qrcode'
-        )
+        const { Html5Qrcode, Html5QrcodeSupportedFormats } =
+          await importWithReload(() => import('html5-qrcode'))
         if (cancelled || !containerRef.current) return
 
         // ID stabile per la durata del mount

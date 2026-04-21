@@ -5,31 +5,49 @@ import { SignIn } from './routes/auth/SignIn'
 import { SignUp } from './routes/auth/SignUp'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import { AppShell } from './components/layout/AppShell'
+import { importWithReload } from './lib/lazy'
 
 // Lazy-load delle route: ogni pagina in un chunk separato.
+// importWithReload forza un reload se il chunk non esiste più (post-deploy).
 const Home = lazy(() =>
-  import('./routes/Home').then((m) => ({ default: m.Home })),
+  importWithReload(() =>
+    import('./routes/Home').then((m) => ({ default: m.Home })),
+  ),
 )
 const Meals = lazy(() =>
-  import('./routes/Meals').then((m) => ({ default: m.Meals })),
+  importWithReload(() =>
+    import('./routes/Meals').then((m) => ({ default: m.Meals })),
+  ),
 )
 const Recipes = lazy(() =>
-  import('./routes/Recipes').then((m) => ({ default: m.Recipes })),
+  importWithReload(() =>
+    import('./routes/Recipes').then((m) => ({ default: m.Recipes })),
+  ),
 )
 const Chat = lazy(() =>
-  import('./routes/Chat').then((m) => ({ default: m.Chat })),
+  importWithReload(() =>
+    import('./routes/Chat').then((m) => ({ default: m.Chat })),
+  ),
 )
 const Reviews = lazy(() =>
-  import('./routes/Reviews').then((m) => ({ default: m.Reviews })),
+  importWithReload(() =>
+    import('./routes/Reviews').then((m) => ({ default: m.Reviews })),
+  ),
 )
 const Training = lazy(() =>
-  import('./routes/Training').then((m) => ({ default: m.Training })),
+  importWithReload(() =>
+    import('./routes/Training').then((m) => ({ default: m.Training })),
+  ),
 )
 const Assessment = lazy(() =>
-  import('./routes/Assessment').then((m) => ({ default: m.Assessment })),
+  importWithReload(() =>
+    import('./routes/Assessment').then((m) => ({ default: m.Assessment })),
+  ),
 )
 const Settings = lazy(() =>
-  import('./routes/Settings').then((m) => ({ default: m.Settings })),
+  importWithReload(() =>
+    import('./routes/Settings').then((m) => ({ default: m.Settings })),
+  ),
 )
 
 function RouteFallback() {
