@@ -17,9 +17,11 @@ import {
   sumMealTotals,
   useMealsForDate,
 } from '@/features/meals/useMeals'
+import { useReviewStatus } from '@/features/reviews/useReviews'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { round0 } from '@/lib/macro'
+import { BarChart3 } from 'lucide-react'
 
 export function Home() {
   const { user } = useAuth()
@@ -48,6 +50,8 @@ export function Home() {
     profile?.target_carb_g != null ||
     profile?.target_fat_g != null
 
+  const reviewStatus = useReviewStatus()
+
   const targets = {
     kcal: profile?.target_kcal ?? null,
     protein: profile?.target_protein_g ?? null,
@@ -73,6 +77,52 @@ export function Home() {
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">{user?.email}</p>
       </div>
+
+      {/* Review banner — priorità massima se presente */}
+      {reviewStatus.hasPendingAction && reviewStatus.latest && (
+        <div className="rounded-lg border border-warning/40 bg-warning/10 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-warning/20">
+              <BarChart3 className="h-4 w-4 text-warning" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-semibold text-warning">
+                Review: l'AI suggerisce un aggiustamento
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                {reviewStatus.latest.ai_suggestion?.summary}
+              </p>
+            </div>
+            <Button asChild size="sm">
+              <Link to="/reviews">Vedi</Link>
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!reviewStatus.hasPendingAction &&
+        reviewStatus.dueForNewReview &&
+        hasGoal &&
+        hasTargets && (
+          <div className="rounded-lg border border-border bg-card p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                <BarChart3 className="h-4 w-4 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-semibold">Review bisettimanale</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {reviewStatus.latest
+                    ? `Ultima review ${reviewStatus.daysSinceLatest} giorni fa. Genera la prossima.`
+                    : 'Non hai mai generato una review. Dopo 14 giorni di tracking è il momento giusto.'}
+                </p>
+              </div>
+              <Button asChild size="sm" variant="outline">
+                <Link to="/reviews">Apri</Link>
+              </Button>
+            </div>
+          </div>
+        )}
 
       {/* 4 macro cards */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">

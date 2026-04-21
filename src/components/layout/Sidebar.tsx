@@ -5,6 +5,7 @@ import {
   ChefHat,
   Dumbbell,
   MessageCircle,
+  BarChart3,
   Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -15,6 +16,7 @@ const items = [
   { to: '/recipes', icon: ChefHat, label: 'Ricette', disabled: false },
   { to: '/training', icon: Dumbbell, label: 'Training', disabled: true },
   { to: '/chat', icon: MessageCircle, label: 'Chat AI', disabled: false },
+  { to: '/reviews', icon: BarChart3, label: 'Review', disabled: false },
   { to: '/settings', icon: Settings, label: 'Impostazioni', disabled: false },
 ]
 
