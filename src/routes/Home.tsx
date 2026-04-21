@@ -9,6 +9,9 @@ import {
   Minus,
   Utensils,
   Target,
+  BarChart3,
+  Scale,
+  Sparkles,
 } from 'lucide-react'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useProfile } from '@/features/profile/useProfile'
@@ -21,7 +24,6 @@ import { useReviewStatus } from '@/features/reviews/useReviews'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 import { round0 } from '@/lib/macro'
-import { BarChart3 } from 'lucide-react'
 
 export function Home() {
   const { user } = useAuth()
@@ -49,6 +51,14 @@ export function Home() {
     profile?.target_protein_g != null ||
     profile?.target_carb_g != null ||
     profile?.target_fat_g != null
+
+  const daysSinceLastWeigh =
+    latest?.measured_at != null
+      ? Math.floor(
+          (Date.now() - new Date(latest.measured_at).getTime()) /
+            (1000 * 60 * 60 * 24),
+        )
+      : null
 
   const reviewStatus = useReviewStatus()
 
@@ -165,20 +175,21 @@ export function Home() {
       />
 
       {/* Next action / onboarding */}
-      {!hasTargets ? (
+      {!profile?.height_cm || !profile?.sex ? (
         <OnboardCard
-          title="Imposta i tuoi target giornalieri"
-          description="Definisci kcal e macro (manuali o calcolati in un click dal profilo) per vedere quanto ti manca ogni giorno."
+          title="Completa l'assessment iniziale"
+          description="Un flusso guidato in 5 passaggi per configurare profilo, obiettivo, misure e target."
+          to="/assessment"
+          cta="Avvia assessment"
+          icon={Sparkles}
+        />
+      ) : !hasTargets ? (
+        <OnboardCard
+          title="Imposta i target giornalieri"
+          description="Definisci kcal e macro (calcolati in un click) per vedere quanto ti manca ogni giorno."
           to="/settings"
           cta="Vai ai target"
           icon={Target}
-        />
-      ) : !profile?.height_cm || !profile?.sex ? (
-        <OnboardCard
-          title="Completa il tuo profilo"
-          description="Inserisci sesso, altezza e obiettivo per abilitare calcoli e suggerimenti più precisi."
-          to="/settings"
-          cta="Impostazioni"
         />
       ) : !latest ? (
         <OnboardCard
@@ -186,6 +197,14 @@ export function Home() {
           description="Profilo ok. Inserisci peso (e body fat) per iniziare a tracciare l'andamento."
           to="/settings"
           cta="Aggiungi misura"
+        />
+      ) : daysSinceLastWeigh != null && daysSinceLastWeigh >= 7 ? (
+        <OnboardCard
+          title="È ora di ripesarti"
+          description={`Sono passati ${daysSinceLastWeigh} giorni dall'ultima misurazione. I dati freschi rendono le review AI più accurate.`}
+          to="/settings"
+          cta="Aggiungi misura"
+          icon={Scale}
         />
       ) : todayMeals.length === 0 ? (
         <OnboardCard

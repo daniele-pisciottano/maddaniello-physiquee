@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { Download } from 'lucide-react'
 import {
@@ -8,23 +9,65 @@ import {
   CardTitle,
 } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { useProfile } from '@/features/profile/useProfile'
-import { useMeasurements } from '@/features/measurements/useMeasurements'
+import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/features/auth/AuthProvider'
+
+const TABLES = [
+  'profile',
+  'measurements',
+  'foods',
+  'recipes',
+  'recipe_items',
+  'meal_entries',
+  'dietary_rules',
+  'workouts',
+  'sleep_entries',
+  'supplements',
+  'supplement_log',
+  'phase_reviews',
+  'chat_messages',
+  'learned_corrections',
+  'system_prompts',
+  'ai_usage_daily',
+  'ai_settings',
+] as const
 
 export function ExportSection() {
   const { user } = useAuth()
-  const { data: profile } = useProfile()
-  const { data: measurements } = useMeasurements()
+  const [busy, setBusy] = useState(false)
 
-  function handleExport() {
+  async function handleExport() {
+    if (!user) return
+    setBusy(true)
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         exported_at: new Date().toISOString(),
-        user: { id: user?.id, email: user?.email },
-        profile,
-        measurements,
+        user: { id: user.id, email: user.email },
       }
+
+      for (const table of TABLES) {
+        // recipe_items è filtrato via join: prendi quelli delle mie ricette
+        if (table === 'recipe_items') {
+          const { data, error } = await supabase
+            .from('recipe_items')
+            .select('*, recipes!inner(user_id)')
+            .eq('recipes.user_id', user.id)
+          if (error) throw new Error(`${table}: ${error.message}`)
+          payload[table] = (data ?? []).map((r: Record<string, unknown>) => {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { recipes: _r, ...rest } = r
+            return rest
+          })
+        } else {
+          const { data, error } = await supabase
+            .from(table)
+            .select('*')
+            .eq('user_id', user.id)
+          if (error) throw new Error(`${table}: ${error.message}`)
+          payload[table] = data ?? []
+        }
+      }
+
       const blob = new Blob([JSON.stringify(payload, null, 2)], {
         type: 'application/json',
       })
@@ -39,22 +82,30 @@ export function ExportSection() {
       toast.success('Export scaricato')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Errore durante export')
+    } finally {
+      setBusy(false)
     }
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Dati</CardTitle>
+        <CardTitle>Esporta dati</CardTitle>
         <CardDescription>
-          Scarica una copia JSON di profilo e misure. In fasi successive
-          includerà anche pasti, allenamenti, chat e knowledge base.
+          Scarica un JSON completo di tutti i tuoi dati: profilo, misure, pasti,
+          alimenti, ricette, regole, allenamenti, sonno, integratori, chat,
+          correzioni, review e configurazione AI (senza API key in chiaro).
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Button type="button" variant="outline" onClick={handleExport}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleExport}
+          disabled={busy}
+        >
           <Download className="h-4 w-4" />
-          Esporta JSON
+          {busy ? 'Preparazione…' : 'Esporta tutto (JSON)'}
         </Button>
       </CardContent>
     </Card>

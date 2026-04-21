@@ -7,6 +7,7 @@ import { AiSection } from './settings/AiSection'
 import { SystemPromptSection } from './settings/SystemPromptSection'
 import { CorrectionsSection } from './settings/CorrectionsSection'
 import { ExportSection } from './settings/ExportSection'
+import { DangerZoneSection } from './settings/DangerZoneSection'
 
 export function Settings() {
   return (
@@ -31,6 +32,7 @@ export function Settings() {
       <SystemPromptSection />
       <CorrectionsSection />
       <ExportSection />
+      <DangerZoneSection />
     </div>
   )
 }

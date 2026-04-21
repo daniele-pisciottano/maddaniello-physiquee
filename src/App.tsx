@@ -7,6 +7,7 @@ import { Recipes } from './routes/Recipes'
 import { Chat } from './routes/Chat'
 import { Reviews } from './routes/Reviews'
 import { Training } from './routes/Training'
+import { Assessment } from './routes/Assessment'
 import { Settings } from './routes/Settings'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import { AppShell } from './components/layout/AppShell'
@@ -29,6 +30,7 @@ export function App() {
         <Route path="/chat" element={<Chat />} />
         <Route path="/reviews" element={<Reviews />} />
         <Route path="/training" element={<Training />} />
+        <Route path="/assessment" element={<Assessment />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
