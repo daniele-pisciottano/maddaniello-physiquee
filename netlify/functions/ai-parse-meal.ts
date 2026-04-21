@@ -175,7 +175,7 @@ Descrizione: ${body.meal_text.trim()}`
       {
         jsonMode: true,
         temperature: 0.2,
-        maxTokens: 1500,
+        maxTokens: 2500,
       },
     )
   } catch (err) {

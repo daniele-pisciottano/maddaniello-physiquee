@@ -149,20 +149,32 @@ export const handler: Handler = async (event) => {
     })),
   ]
 
-  // 8. AI call
+  // 8. AI call — maxTokens alto così la risposta ha spazio anche con
+  // reasoning attivo o context lungo. Il finish_reason ci dice se il
+  // modello si è fermato naturalmente o è stato troncato.
   let result
   try {
     result = await chat(provider, apiKey, cred.default_model, messages, {
       temperature: 0.5,
-      maxTokens: 1000,
+      maxTokens: 3000,
     })
   } catch (err) {
     return fail(502, err instanceof Error ? err.message : 'AI call fallita')
   }
 
-  const assistantText = (result.text || '').trim()
+  let assistantText = (result.text || '').trim()
   if (!assistantText) {
     return fail(502, "L'AI non ha restituito testo")
+  }
+
+  // Se troncato, aggiungi nota visibile in fondo alla risposta
+  const wasTruncated =
+    result.finish_reason === 'length' ||
+    result.finish_reason === 'MAX_TOKENS' ||
+    result.finish_reason === 'max_tokens'
+  if (wasTruncated) {
+    assistantText +=
+      '\n\n_⚠️ Risposta troncata per limite token. Chiedi di continuare o di essere più conciso._'
   }
 
   // 9. Persisti risposta assistant

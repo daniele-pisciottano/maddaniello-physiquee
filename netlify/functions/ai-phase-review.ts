@@ -115,7 +115,7 @@ export const handler: Handler = async (event) => {
       {
         jsonMode: true,
         temperature: 0.3,
-        maxTokens: 1500,
+        maxTokens: 3000,
       },
     )
   } catch (err) {

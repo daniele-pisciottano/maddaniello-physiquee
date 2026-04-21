@@ -12,6 +12,11 @@ export type ChatOptions = {
   jsonMode?: boolean
   temperature?: number
   maxTokens?: number
+  // Gemini 2.5+: budget per i token di "thinking" prima dell'output visibile.
+  // 0 = thinking disabilitato (risposta più veloce).
+  // undefined = comportamento default del modello (può consumare maxTokens).
+  // Numero = massimo token dedicati al ragionamento interno.
+  thinkingBudget?: number
 }
 
 export type ChatResult = {
@@ -98,16 +103,35 @@ async function geminiChat(
   const systemMsgs = messages.filter((m) => m.role === 'system')
   const otherMsgs = messages.filter((m) => m.role !== 'system')
 
+  // Per modelli Gemini 2.5+ che hanno il "thinking mode": se il chiamante
+  // non specifica un thinkingBudget, lo forziamo a 0. Altrimenti i token
+  // di pensiero rubano spazio a maxOutputTokens e la risposta viene
+  // troncata mid-parola.
+  const isGemini25 = model.includes('2.5')
+  const effectiveThinkingBudget =
+    options.thinkingBudget !== undefined
+      ? options.thinkingBudget
+      : isGemini25
+        ? 0
+        : undefined
+
+  const generationConfig: Record<string, unknown> = {
+    temperature: options.temperature ?? 0.2,
+    ...(options.maxTokens ? { maxOutputTokens: options.maxTokens } : {}),
+    ...(options.jsonMode ? { responseMimeType: 'application/json' } : {}),
+  }
+  if (effectiveThinkingBudget !== undefined) {
+    generationConfig.thinkingConfig = {
+      thinkingBudget: effectiveThinkingBudget,
+    }
+  }
+
   const body: Record<string, unknown> = {
     contents: otherMsgs.map((m) => ({
       role: m.role === 'user' ? 'user' : 'model',
       parts: [{ text: m.content }],
     })),
-    generationConfig: {
-      temperature: options.temperature ?? 0.2,
-      ...(options.maxTokens ? { maxOutputTokens: options.maxTokens } : {}),
-      ...(options.jsonMode ? { responseMimeType: 'application/json' } : {}),
-    },
+    generationConfig,
   }
   if (systemMsgs.length > 0) {
     body.systemInstruction = {
