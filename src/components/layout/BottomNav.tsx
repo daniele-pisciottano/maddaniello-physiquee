@@ -7,7 +7,7 @@ const items = [
   { to: '/', icon: Home, label: 'Oggi', disabled: false },
   { to: '/meals', icon: Utensils, label: 'Pasti', disabled: false },
   { to: '/recipes', icon: ChefHat, label: 'Ricette', disabled: false },
-  { to: '/chat', icon: MessageCircle, label: 'Chat', disabled: true },
+  { to: '/chat', icon: MessageCircle, label: 'Chat', disabled: false },
   { to: '/settings', icon: Settings, label: 'Impost.', disabled: false },
 ]
 

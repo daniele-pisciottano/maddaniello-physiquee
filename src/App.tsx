@@ -4,6 +4,7 @@ import { SignUp } from './routes/auth/SignUp'
 import { Home } from './routes/Home'
 import { Meals } from './routes/Meals'
 import { Recipes } from './routes/Recipes'
+import { Chat } from './routes/Chat'
 import { Settings } from './routes/Settings'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import { AppShell } from './components/layout/AppShell'
@@ -23,6 +24,7 @@ export function App() {
         <Route path="/" element={<Home />} />
         <Route path="/meals" element={<Meals />} />
         <Route path="/recipes" element={<Recipes />} />
+        <Route path="/chat" element={<Chat />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

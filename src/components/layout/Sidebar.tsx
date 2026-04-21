@@ -14,7 +14,7 @@ const items = [
   { to: '/meals', icon: Utensils, label: 'Pasti', disabled: false },
   { to: '/recipes', icon: ChefHat, label: 'Ricette', disabled: false },
   { to: '/training', icon: Dumbbell, label: 'Training', disabled: true },
-  { to: '/chat', icon: MessageCircle, label: 'Chat AI', disabled: true },
+  { to: '/chat', icon: MessageCircle, label: 'Chat AI', disabled: false },
   { to: '/settings', icon: Settings, label: 'Impostazioni', disabled: false },
 ]
 

@@ -1,0 +1,400 @@
+// Costruisce un blocco di contesto utente compatto per l'AI.
+// Viene ricostruito ad ogni chat call (profilo/pasti/regole cambiano).
+
+import type { SupabaseClient } from '@supabase/supabase-js'
+
+type Profile = {
+  sex: 'male' | 'female' | 'other' | null
+  birth_date: string | null
+  height_cm: number | null
+  activity_level: string | null
+  goal_type: string | null
+  goal_weight_kg: number | null
+  goal_body_fat_pct: number | null
+  goal_deadline: string | null
+  target_kcal: number | null
+  target_protein_g: number | null
+  target_carb_g: number | null
+  target_fat_g: number | null
+}
+
+type Measurement = {
+  measured_at: string
+  weight_kg: number | null
+  body_fat_pct: number | null
+}
+
+type MealEntry = {
+  eaten_at: string
+  meal_type: string
+  food_name: string
+  grams: number | null
+  kcal: number
+  protein_g: number
+  carb_g: number
+  fat_g: number
+}
+
+type DietaryRule = {
+  rule_type: string
+  rule_value: Record<string, unknown>
+  notes: string | null
+}
+
+type LearnedCorrection = {
+  scope: string
+  content: string
+}
+
+export async function buildContext(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<string> {
+  const [profile, latestMeasurement, todayMeals, weekMeals, rules, corrections] =
+    await Promise.all([
+      loadProfile(supabase, userId),
+      loadLatestMeasurement(supabase, userId),
+      loadTodayMeals(supabase, userId),
+      loadWeekMeals(supabase, userId),
+      loadActiveRules(supabase, userId),
+      loadActiveCorrections(supabase, userId),
+    ])
+
+  const parts: string[] = []
+  const now = new Date()
+  const todayIso = now.toISOString().slice(0, 10)
+  parts.push(`# Contesto attuale (${formatDate(now)})`)
+
+  // --- Profilo ---
+  if (profile) {
+    const p: string[] = []
+    if (profile.sex) p.push(`sesso ${labelSex(profile.sex)}`)
+    if (profile.birth_date) p.push(`età ${yearsOld(profile.birth_date)} anni`)
+    if (profile.height_cm) p.push(`altezza ${profile.height_cm} cm`)
+    if (profile.activity_level) p.push(`attività ${profile.activity_level}`)
+    if (latestMeasurement?.weight_kg != null) {
+      p.push(`peso ${Number(latestMeasurement.weight_kg)} kg`)
+    }
+    if (latestMeasurement?.body_fat_pct != null) {
+      p.push(`body fat ${Number(latestMeasurement.body_fat_pct)}%`)
+    }
+    if (p.length > 0) {
+      parts.push('## Profilo\n' + p.join(', '))
+    }
+
+    // --- Obiettivo ---
+    const g: string[] = []
+    if (profile.goal_type) g.push(`fase ${profile.goal_type}`)
+    if (profile.goal_weight_kg != null) {
+      g.push(`peso target ${profile.goal_weight_kg} kg`)
+    }
+    if (profile.goal_body_fat_pct != null) {
+      g.push(`BF target ${profile.goal_body_fat_pct}%`)
+    }
+    if (profile.goal_deadline) g.push(`entro ${profile.goal_deadline}`)
+    if (g.length > 0) {
+      parts.push('## Obiettivo\n' + g.join(', '))
+    }
+
+    // --- Target macro giornalieri ---
+    if (
+      profile.target_kcal ||
+      profile.target_protein_g ||
+      profile.target_carb_g ||
+      profile.target_fat_g
+    ) {
+      const t: string[] = []
+      if (profile.target_kcal) t.push(`${profile.target_kcal} kcal`)
+      if (profile.target_protein_g) t.push(`P ${profile.target_protein_g}g`)
+      if (profile.target_carb_g) t.push(`C ${profile.target_carb_g}g`)
+      if (profile.target_fat_g) t.push(`G ${profile.target_fat_g}g`)
+      parts.push('## Target giornaliero\n' + t.join(' · '))
+    }
+  }
+
+  // --- Oggi: totali + pasti ---
+  const todayTotals = sumMeals(todayMeals)
+  const targetK = profile?.target_kcal ?? null
+  const targetP = profile?.target_protein_g ?? null
+  const targetC = profile?.target_carb_g ?? null
+  const targetF = profile?.target_fat_g ?? null
+
+  parts.push('## Oggi — stato')
+  if (todayMeals.length === 0) {
+    parts.push('Nessun pasto loggato oggi.')
+  } else {
+    parts.push(
+      `Consumato: ${round0(todayTotals.kcal)} kcal · ${round0(todayTotals.protein)}g P · ${round0(todayTotals.carb)}g C · ${round0(todayTotals.fat)}g G`,
+    )
+    const rem: string[] = []
+    if (targetK) rem.push(`${round0(targetK - todayTotals.kcal)} kcal`)
+    if (targetP) rem.push(`${round0(targetP - todayTotals.protein)}g P`)
+    if (targetC) rem.push(`${round0(targetC - todayTotals.carb)}g C`)
+    if (targetF) rem.push(`${round0(targetF - todayTotals.fat)}g G`)
+    if (rem.length > 0) parts.push(`Residui a target: ${rem.join(' · ')}`)
+    parts.push('Pasti:')
+    for (const m of todayMeals) {
+      const time = m.eaten_at.slice(11, 16)
+      const grams = m.grams ? `${round0(Number(m.grams))}g` : '—'
+      parts.push(
+        `- ${time} ${labelMealType(m.meal_type)}: ${m.food_name} · ${grams} · ${round0(m.kcal)} kcal, ${round0(m.protein_g)}g P`,
+      )
+    }
+  }
+
+  // --- Ultimi 7 giorni: elenco compatto ---
+  if (weekMeals.length > 0) {
+    const byDay = new Map<string, MealEntry[]>()
+    for (const m of weekMeals) {
+      const day = m.eaten_at.slice(0, 10)
+      if (day === todayIso) continue
+      if (!byDay.has(day)) byDay.set(day, [])
+      byDay.get(day)!.push(m)
+    }
+    if (byDay.size > 0) {
+      parts.push('## Ultimi 7 giorni')
+      const sorted = Array.from(byDay.entries()).sort((a, b) =>
+        b[0].localeCompare(a[0]),
+      )
+      for (const [day, meals] of sorted) {
+        const tot = sumMeals(meals)
+        const items = meals
+          .map((m) => m.food_name)
+          .slice(0, 6)
+          .join(', ')
+        parts.push(
+          `- ${day} (${round0(tot.kcal)} kcal): ${items}${meals.length > 6 ? '…' : ''}`,
+        )
+      }
+
+      // Counts per keyword (carne/pesce/uova/ecc) — semplici heuristiche
+      const counts = countKeywords(weekMeals)
+      if (Object.keys(counts).length > 0) {
+        parts.push(
+          'Frequenza categorie (last 7d): ' +
+            Object.entries(counts)
+              .map(([k, v]) => `${k} ${v}x`)
+              .join(', '),
+        )
+      }
+    }
+  }
+
+  // --- Regole dietetiche ---
+  if (rules.length > 0) {
+    parts.push('## Regole alimentari attive')
+    for (const r of rules) {
+      parts.push(`- ${formatRule(r)}`)
+    }
+  }
+
+  // --- Correzioni apprese ---
+  if (corrections.length > 0) {
+    parts.push('## Preferenze e correzioni apprese')
+    for (const c of corrections) {
+      parts.push(`- [${c.scope}] ${c.content}`)
+    }
+  }
+
+  return parts.join('\n\n')
+}
+
+// --------------------------------------------------------------
+// Loaders
+// --------------------------------------------------------------
+async function loadProfile(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<Profile | null> {
+  const { data } = await supabase
+    .from('profile')
+    .select(
+      'sex, birth_date, height_cm, activity_level, goal_type, goal_weight_kg, goal_body_fat_pct, goal_deadline, target_kcal, target_protein_g, target_carb_g, target_fat_g',
+    )
+    .eq('user_id', userId)
+    .maybeSingle()
+  return (data as Profile) ?? null
+}
+
+async function loadLatestMeasurement(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<Measurement | null> {
+  const { data } = await supabase
+    .from('measurements')
+    .select('measured_at, weight_kg, body_fat_pct')
+    .eq('user_id', userId)
+    .order('measured_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return (data as Measurement) ?? null
+}
+
+async function loadTodayMeals(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<MealEntry[]> {
+  const start = startOfLocalDay()
+  const end = endOfLocalDay()
+  const { data } = await supabase
+    .from('meal_entries')
+    .select(
+      'eaten_at, meal_type, food_name, grams, kcal, protein_g, carb_g, fat_g',
+    )
+    .eq('user_id', userId)
+    .gte('eaten_at', start)
+    .lte('eaten_at', end)
+    .order('eaten_at')
+  return (data as MealEntry[]) ?? []
+}
+
+async function loadWeekMeals(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<MealEntry[]> {
+  const start = new Date()
+  start.setDate(start.getDate() - 6)
+  start.setHours(0, 0, 0, 0)
+  const { data } = await supabase
+    .from('meal_entries')
+    .select(
+      'eaten_at, meal_type, food_name, grams, kcal, protein_g, carb_g, fat_g',
+    )
+    .eq('user_id', userId)
+    .gte('eaten_at', start.toISOString())
+    .order('eaten_at')
+  return (data as MealEntry[]) ?? []
+}
+
+async function loadActiveRules(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<DietaryRule[]> {
+  const { data } = await supabase
+    .from('dietary_rules')
+    .select('rule_type, rule_value, notes')
+    .eq('user_id', userId)
+    .eq('active', true)
+  return (data as DietaryRule[]) ?? []
+}
+
+async function loadActiveCorrections(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<LearnedCorrection[]> {
+  const { data } = await supabase
+    .from('learned_corrections')
+    .select('scope, content')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .order('created_at', { ascending: false })
+    .limit(30)
+  return (data as LearnedCorrection[]) ?? []
+}
+
+// --------------------------------------------------------------
+// Utils
+// --------------------------------------------------------------
+function startOfLocalDay(): string {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.toISOString()
+}
+
+function endOfLocalDay(): string {
+  const d = new Date()
+  d.setHours(23, 59, 59, 999)
+  return d.toISOString()
+}
+
+function yearsOld(birthDateIso: string): number {
+  const b = new Date(birthDateIso)
+  const now = new Date()
+  let age = now.getFullYear() - b.getFullYear()
+  const m = now.getMonth() - b.getMonth()
+  if (m < 0 || (m === 0 && now.getDate() < b.getDate())) age--
+  return age
+}
+
+function labelSex(s: string): string {
+  return s === 'male' ? 'uomo' : s === 'female' ? 'donna' : 'altro'
+}
+
+function labelMealType(t: string): string {
+  return {
+    breakfast: 'colazione',
+    lunch: 'pranzo',
+    dinner: 'cena',
+    snack: 'spuntino',
+  }[t] ?? t
+}
+
+function formatDate(d: Date): string {
+  return d.toLocaleDateString('it-IT', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Europe/Rome',
+  })
+}
+
+function round0(n: number): number {
+  return Math.round(Number(n))
+}
+
+function sumMeals(meals: MealEntry[]) {
+  return meals.reduce(
+    (acc, m) => ({
+      kcal: acc.kcal + Number(m.kcal),
+      protein: acc.protein + Number(m.protein_g),
+      carb: acc.carb + Number(m.carb_g),
+      fat: acc.fat + Number(m.fat_g),
+    }),
+    { kcal: 0, protein: 0, carb: 0, fat: 0 },
+  )
+}
+
+function formatRule(r: DietaryRule): string {
+  const val = r.rule_value as Record<string, unknown>
+  const target = (val.food_tag as string) || (val.ingredient as string) || '?'
+  const n = val.value ?? val.count ?? '?'
+  const notes = r.notes ? ` (${r.notes})` : ''
+  switch (r.rule_type) {
+    case 'max_per_week':
+      return `Max ${n}x/settimana: ${target}${notes}`
+    case 'max_per_day':
+      return `Max ${n}x/giorno: ${target}${notes}`
+    case 'min_per_day':
+      return `Min ${n}x/giorno: ${target}${notes}`
+    case 'exclude':
+      return `Escludi: ${target}${notes}`
+    case 'prefer':
+      return `Preferisci: ${target}${notes}`
+    default:
+      return `${r.rule_type}: ${JSON.stringify(val)}`
+  }
+}
+
+// Heuristics molto semplici per categorizzare i pasti della settimana.
+function countKeywords(meals: MealEntry[]): Record<string, number> {
+  const keywords: Record<string, string[]> = {
+    carne: ['pollo', 'tacchino', 'manzo', 'vitello', 'maiale', 'agnello', 'prosciutto', 'salsiccia', 'carne', 'hamburger', 'bresaola'],
+    pesce: ['pesce', 'tonno', 'salmone', 'merluzzo', 'orata', 'branzino', 'gamberi', 'acciughe'],
+    uova: ['uovo', 'uova', 'frittata', 'omelette'],
+    latticini: ['yogurt', 'latte', 'formaggio', 'ricotta', 'mozzarella', 'feta', 'parmigiano', 'grana'],
+    legumi: ['lenticchie', 'ceci', 'fagioli', 'piselli', 'soia', 'tofu'],
+    frutta: ['mela', 'banana', 'arancia', 'pera', 'kiwi', 'fragole', 'ananas'],
+  }
+  const counts: Record<string, number> = {}
+  for (const m of meals) {
+    const name = m.food_name.toLowerCase()
+    for (const [cat, kws] of Object.entries(keywords)) {
+      if (kws.some((k) => name.includes(k))) {
+        counts[cat] = (counts[cat] ?? 0) + 1
+        break
+      }
+    }
+  }
+  return counts
+}
