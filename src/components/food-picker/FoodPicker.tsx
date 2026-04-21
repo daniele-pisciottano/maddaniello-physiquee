@@ -27,7 +27,9 @@ export type PickedFood = {
   protein_g: number
   carb_g: number
   fat_g: number
-  source: 'manual' | 'barcode'
+  source: 'manual' | 'barcode' | 'ai_chat'
+  raw_ai_text?: string | null
+  confidence?: number | null
 }
 
 export type OnPickFood = (p: PickedFood) => void | Promise<void>
