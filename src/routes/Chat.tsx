@@ -25,10 +25,10 @@ import { QuickMemoryDialog } from './chat/QuickMemoryDialog'
 
 const SUGGESTIONS = [
   'Cosa posso mangiare a cena stasera?',
+  'Generami un menu settimanale usando i miei alimenti, target e regole',
   'Analizza la mia giornata nutrizionale',
   'Dammi 3 idee di spuntino sotto le 200 kcal',
   'Come sto andando con i target questa settimana?',
-  'Suggerimi una colazione ad alto contenuto proteico',
   'Cosa mi manca per arrivare al target di oggi?',
 ]
 

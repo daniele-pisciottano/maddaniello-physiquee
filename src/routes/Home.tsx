@@ -250,7 +250,6 @@ export function Home() {
             size="icon"
             onClick={() => setSelectedDate((d) => addDays(d, 1))}
             aria-label="Giorno successivo"
-            disabled={isToday}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>

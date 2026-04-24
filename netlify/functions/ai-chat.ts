@@ -154,9 +154,11 @@ export const handler: Handler = async (event) => {
   // modello si è fermato naturalmente o è stato troncato.
   let result
   try {
+    // maxTokens alto per permettere risposte lunghe tipo "menu settimanale"
+    // completo (4 pasti × 7 giorni con macro dettagliati) senza troncamento.
     result = await chat(provider, apiKey, cred.default_model, messages, {
       temperature: 0.5,
-      maxTokens: 3000,
+      maxTokens: 6000,
     })
   } catch (err) {
     return fail(502, err instanceof Error ? err.message : 'AI call fallita')

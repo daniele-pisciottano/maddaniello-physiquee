@@ -44,6 +44,11 @@ const Trends = lazy(() =>
     import('./routes/Trends').then((m) => ({ default: m.Trends })),
   ),
 )
+const Progresso = lazy(() =>
+  importWithReload(() =>
+    import('./routes/Progresso').then((m) => ({ default: m.Progresso })),
+  ),
+)
 const Assessment = lazy(() =>
   importWithReload(() =>
     import('./routes/Assessment').then((m) => ({ default: m.Assessment })),
@@ -86,6 +91,7 @@ export function App() {
         <Route path="/reviews" element={<Lazy><Reviews /></Lazy>} />
         <Route path="/training" element={<Lazy><Training /></Lazy>} />
         <Route path="/andamento" element={<Lazy><Trends /></Lazy>} />
+        <Route path="/progresso" element={<Lazy><Progresso /></Lazy>} />
         <Route path="/assessment" element={<Lazy><Assessment /></Lazy>} />
         <Route path="/settings" element={<Lazy><Settings /></Lazy>} />
       </Route>

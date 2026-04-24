@@ -7,6 +7,7 @@ import {
   MessageCircle,
   BarChart3,
   LineChart,
+  Camera,
   Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -18,6 +19,7 @@ const items = [
   { to: '/training', icon: Dumbbell, label: 'Training', disabled: false },
   { to: '/chat', icon: MessageCircle, label: 'Chat AI', disabled: false },
   { to: '/andamento', icon: LineChart, label: 'Andamento', disabled: false },
+  { to: '/progresso', icon: Camera, label: 'Progresso', disabled: false },
   { to: '/reviews', icon: BarChart3, label: 'Review', disabled: false },
   { to: '/settings', icon: Settings, label: 'Impostazioni', disabled: false },
 ]
