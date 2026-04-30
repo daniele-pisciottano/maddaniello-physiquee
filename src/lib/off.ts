@@ -1,8 +1,10 @@
 // Open Food Facts API wrapper — lato client, no CORS issues.
-// Usiamo il dominio italiano per risultati localizzati + lc=it.
-// Docs: https://openfoodfacts.github.io/openfoodfacts-server/api/
+// Strategia di robustezza: timeout 10s, 1 retry su errore di rete,
+// fallback al dominio world.openfoodfacts.org se l'italiano fallisce.
 
-const BASE = 'https://it.openfoodfacts.org'
+const PRIMARY = 'https://it.openfoodfacts.org'
+const FALLBACK = 'https://world.openfoodfacts.org'
+const TIMEOUT_MS = 10_000
 
 export type OffFood = {
   barcode: string
@@ -88,11 +90,69 @@ const FIELDS = [
   'nutrition_grade_fr',
 ].join(',')
 
+// Fetch con timeout e retry singolo su errore di rete.
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit = {},
+  retries: number = 1,
+): Promise<Response> {
+  let lastErr: unknown
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      })
+      clearTimeout(timer)
+      return res
+    } catch (err) {
+      clearTimeout(timer)
+      lastErr = err
+      // Non ritentare se è stato un abort intenzionale (probabilmente timeout)
+      // — facciamo comunque retry una volta perché OFF a volte è lento
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 600))
+      }
+    }
+  }
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error('OFF non raggiungibile')
+}
+
+// Prova prima sul dominio primario (it.), poi fallback su world.
+async function fetchWithFallback(pathAndQuery: string): Promise<Response> {
+  try {
+    const res = await fetchWithRetry(PRIMARY + pathAndQuery)
+    if (res.ok) return res
+    // Se il primario risponde con 5xx, prova il fallback
+    if (res.status >= 500) {
+      const fb = await fetchWithRetry(FALLBACK + pathAndQuery)
+      return fb
+    }
+    return res
+  } catch {
+    // Errore di rete sul primario: prova il fallback
+    return await fetchWithRetry(FALLBACK + pathAndQuery)
+  }
+}
+
 export async function offProductByBarcode(
   barcode: string,
 ): Promise<OffFood | null> {
-  const url = `${BASE}/api/v2/product/${encodeURIComponent(barcode)}.json?lc=it&fields=${FIELDS}`
-  const res = await fetch(url)
+  const path = `/api/v2/product/${encodeURIComponent(barcode)}.json?lc=it&fields=${FIELDS}`
+  let res: Response
+  try {
+    res = await fetchWithFallback(path)
+  } catch (err) {
+    throw new Error(
+      err instanceof Error
+        ? `OFF non raggiungibile: ${err.message}`
+        : 'OFF non raggiungibile',
+    )
+  }
   if (!res.ok) {
     throw new Error(`OFF errore ${res.status}`)
   }
@@ -104,8 +164,8 @@ export async function offProductByBarcode(
 export async function offSearch(query: string): Promise<OffFood[]> {
   const q = query.trim()
   if (!q) return []
-  // Usiamo l'endpoint legacy /cgi/search.pl che è più stabile e permissivo
-  // con query complesse (spazi, accenti). È quello che usa l'app ufficiale.
+  // Endpoint legacy /cgi/search.pl, più stabile e tollerante con query
+  // contenenti spazi/accenti rispetto al v2/search.
   const params = new URLSearchParams({
     search_terms: q,
     search_simple: '1',
@@ -116,13 +176,11 @@ export async function offSearch(query: string): Promise<OffFood[]> {
     fields: FIELDS,
     sort_by: 'popularity_key',
   })
-  const url = `${BASE}/cgi/search.pl?${params.toString()}`
+  const path = `/cgi/search.pl?${params.toString()}`
 
   let res: Response
   try {
-    res = await fetch(url, {
-      headers: { Accept: 'application/json' },
-    })
+    res = await fetchWithFallback(path)
   } catch (err) {
     throw new Error(
       err instanceof Error

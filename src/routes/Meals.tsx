@@ -6,11 +6,13 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Move,
   Plus,
   Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { MealAddDialog } from './meals/MealAddDialog'
+import { MealEditDialog } from './meals/MealEditDialog'
 import {
   sumMealTotals,
   useDeleteMealEntry,
@@ -30,6 +32,7 @@ export function Meals() {
   const [date, setDate] = useState(() => new Date())
   const [dialogOpen, setDialogOpen] = useState(false)
   const [defaultMealType, setDefaultMealType] = useState<MealType | undefined>()
+  const [editing, setEditing] = useState<MealEntry | null>(null)
   const dateInputRef = useRef<HTMLInputElement>(null)
   const { data: entries = [], isLoading } = useMealsForDate(date)
   const { data: profile } = useProfile()
@@ -168,6 +171,7 @@ export function Meals() {
             entries={groups[mt]}
             onAdd={() => openAdd(mt)}
             onDelete={handleDelete}
+            onMove={(entry) => setEditing(entry)}
           />
         ))}
       </div>
@@ -200,6 +204,12 @@ export function Meals() {
         onOpenChange={setDialogOpen}
         defaultMealType={defaultMealType}
       />
+
+      <MealEditDialog
+        open={editing !== null}
+        onOpenChange={(v) => !v && setEditing(null)}
+        entry={editing}
+      />
     </div>
   )
 }
@@ -209,11 +219,13 @@ function MealGroup({
   entries,
   onAdd,
   onDelete,
+  onMove,
 }: {
   mealType: MealType
   entries: MealEntry[]
   onAdd: () => void
   onDelete: (id: string) => void
+  onMove: (entry: MealEntry) => void
 }) {
   const subtotal = entries.reduce(
     (acc, e) => ({
@@ -260,6 +272,16 @@ function MealGroup({
                   {format(parseISO(e.eaten_at), 'HH:mm')} · {e.source}
                 </div>
               </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => onMove(e)}
+                aria-label="Sposta pasto"
+                title="Sposta in un altro giorno o tipo pasto"
+              >
+                <Move className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
               <Button
                 type="button"
                 variant="ghost"

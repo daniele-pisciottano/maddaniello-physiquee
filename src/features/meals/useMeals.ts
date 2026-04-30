@@ -154,6 +154,39 @@ export function useDeleteMealEntry() {
   })
 }
 
+export function useUpdateMealEntry() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: {
+      id: string
+      patch: Partial<
+        Pick<
+          MealEntry,
+          | 'eaten_at'
+          | 'meal_type'
+          | 'food_name'
+          | 'grams'
+          | 'kcal'
+          | 'protein_g'
+          | 'carb_g'
+          | 'fat_g'
+          | 'notes'
+        >
+      >
+    }) => {
+      const { error } = await supabase
+        .from('meal_entries')
+        .update(input.patch)
+        .eq('id', input.id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['meals'] })
+      qc.invalidateQueries({ queryKey: ['meals-week'] })
+    },
+  })
+}
+
 // Aggregate helpers
 export function sumMealTotals(entries: MealEntry[]) {
   return entries.reduce(

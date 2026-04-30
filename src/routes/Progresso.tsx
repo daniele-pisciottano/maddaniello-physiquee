@@ -428,11 +428,13 @@ function PhotoSlot({
           </button>
         )}
       </div>
+      {/* Senza capture: il browser/SO mostra il picker nativo con
+          opzioni "Libreria foto", "Scatta foto", "Sfoglia file" su mobile.
+          Forzare capture impediva di scegliere foto già scattate. */}
       <Input
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         onChange={handleFileChange}
         className="hidden"
       />
