@@ -18,7 +18,14 @@ const USER_TABLES = [
   'recipes', // recipe_items cascade
   'foods',
   'dietary_rules',
-  // Training
+  // Allenamento strutturato — l'ordine conta: le sessioni vanno prima
+  // delle schede (routine_id) e degli esercizi custom (exercise_id).
+  'personal_records',
+  'workout_sessions', // session_exercises + session_sets in cascata
+  'routines', // routine_exercises + routine_sets in cascata
+  'routine_folders',
+  'exercise_catalog', // solo i custom: i globali hanno user_id null
+  // Training generico
   'workouts',
   'sleep_entries',
   'supplement_log',

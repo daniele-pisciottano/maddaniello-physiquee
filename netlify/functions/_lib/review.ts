@@ -5,6 +5,8 @@
 // - snapshot dei target correnti
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { loadTrainingSets } from './coach/training-data'
+import { analyzeTraining } from './coach/training-rules'
 
 export type ReviewMetrics = {
   period_start: string
@@ -34,6 +36,15 @@ export type ReviewMetrics = {
     carb_g: number
     fat_g: number
   }>
+  // Allenamento nel periodo: senza questo la review non può distinguere
+  // uno stallo da deficit sbagliato da uno stallo da stimolo insufficiente.
+  training: {
+    sessions: number
+    sessions_per_week: number
+    total_volume_kg: number
+    weekly_sets_by_muscle: Array<{ muscle: string; setsPerWeek: number }>
+    findings: string[]
+  } | null
 }
 
 export async function computeReviewMetrics(
@@ -197,6 +208,28 @@ export async function computeReviewMetrics(
     goal_weight_kg:
       profile?.goal_weight_kg != null ? Number(profile.goal_weight_kg) : null,
     daily_samples: dailySamples,
+    training: await computeTrainingMetrics(supabase, userId, daysBack),
+  }
+}
+
+async function computeTrainingMetrics(
+  supabase: SupabaseClient,
+  userId: string,
+  daysBack: number,
+): Promise<ReviewMetrics['training']> {
+  const weeks = Math.max(1, daysBack / 7)
+  const { sets, sessions } = await loadTrainingSets(supabase, userId, weeks)
+  if (sessions.length === 0) return null
+
+  const analysis = analyzeTraining(sets, weeks, sessions.length)
+  return {
+    sessions: sessions.length,
+    sessions_per_week: analysis.sessionsPerWeek,
+    total_volume_kg: round2(
+      sessions.reduce((s, x) => s + Number(x.total_volume_kg ?? 0), 0),
+    ),
+    weekly_sets_by_muscle: analysis.weeklySetsByMuscle,
+    findings: analysis.findings.map((f) => f.message),
   }
 }
 

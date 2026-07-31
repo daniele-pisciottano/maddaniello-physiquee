@@ -245,6 +245,9 @@ Sei in una review bisettimanale del piano nutrizionale dell'utente. Analizzi le 
 - Target grassi: ${metrics.target_fat_at_review ?? '—'} g
 - Peso obiettivo: ${metrics.goal_weight_kg ?? '—'} kg
 
+---ALLENAMENTO NEL PERIODO---
+${formatTrainingBlock(metrics.training)}
+
 ---REGOLE ALIMENTARI ATTIVE---
 ${rulesStr}
 
@@ -262,6 +265,12 @@ Aderenza:
 - ≥80% giorni in target = buona ("good")
 - 60-79% = ok
 - <60% = poor
+
+L'allenamento va letto insieme alla dieta, non separatamente:
+- Peso fermo in cut con allenamento regolare e aderenza alta → il deficit è insufficiente.
+- Peso fermo in bulk con volume di allenamento basso → il problema è lo stimolo, non le calorie: aggiungere kcal senza allenare di più aggiunge solo grasso.
+- Perdita di peso rapida con volume di allenamento in calo → segnale di stress eccessivo, non di successo.
+- Se il volume settimanale per gruppo muscolare è sotto le 10 serie, dillo esplicitamente nel reasoning: è la leva più efficace prima di toccare le calorie.
 
 Aggiustamenti (se status = "adjust_needed"):
 - Mai più del 10-15% di variazione kcal alla volta
@@ -294,6 +303,25 @@ Regole formato:
 - Se status = "adjust_needed": suggested_changes deve contenere almeno un campo != null.
 - I valori in suggested_changes sono i NUOVI valori target, non le delta.
 - Se cambi solo kcal e non macro specifici, metti gli altri a null.`
+}
+
+function formatTrainingBlock(t: ReviewMetrics['training']): string {
+  if (!t) {
+    return '- Nessuna sessione di allenamento strutturata registrata nel periodo. Non è possibile valutare se lo stimolo allenante è adeguato: dillo nel reasoning invece di ignorarlo.'
+  }
+  const volume = t.weekly_sets_by_muscle
+    .filter((m) => m.setsPerWeek >= 1)
+    .map((m) => `${m.muscle} ${m.setsPerWeek}`)
+    .join(' · ')
+  const lines = [
+    `- Sedute: ${t.sessions} (${t.sessions_per_week}/settimana)`,
+    `- Volume totale sollevato: ${Math.round(t.total_volume_kg)} kg`,
+    `- Serie allenanti/settimana per gruppo: ${volume || '—'}`,
+  ]
+  if (t.findings.length > 0) {
+    lines.push(`- Rilievi automatici:\n${t.findings.map((f) => `  · ${f}`).join('\n')}`)
+  }
+  return lines.join('\n')
 }
 
 function daysBetween(a: string, b: string): number {

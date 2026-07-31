@@ -2,7 +2,26 @@
 // Viene ricostruito ad ogni chat call (profilo/pasti/regole cambiano).
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { embedTexts } from './embeddings'
+import { embedTexts, embeddingCostCents } from './embeddings'
+import { recordUsage } from './budget'
+import { selectKnowledge } from './kb'
+import {
+  analyzeNutrition,
+  formatFindings,
+  type NutritionFacts,
+} from './coach/nutrition-rules'
+import {
+  analyzeTraining,
+  formatTrainingContext,
+} from './coach/training-rules'
+import {
+  formatRecentSessions,
+  loadTrainingSets,
+} from './coach/training-data'
+
+// Finestra di analisi dell'allenamento: 4 settimane è il minimo per
+// leggere volume settimanale e progressioni senza rumore.
+const TRAINING_WEEKS = 4
 
 type Profile = {
   sex: 'male' | 'female' | 'other' | null
@@ -85,19 +104,19 @@ export async function buildContext(
 ): Promise<string> {
   const [
     profile,
-    latestMeasurement,
-    todayMeals,
-    weekMeals,
+    measurements,
+    allWeekMeals,
     rules,
     corrections,
     weekWorkouts,
     weekSleep,
     mealPlan,
     knowledgeHits,
+    training,
   ] = await Promise.all([
     loadProfile(supabase, userId),
-    loadLatestMeasurement(supabase, userId),
-    loadTodayMeals(supabase, userId),
+    loadRecentMeasurements(supabase, userId),
+    // I pasti di oggi sono un sottoinsieme della settimana: una query sola.
     loadWeekMeals(supabase, userId),
     loadActiveRules(supabase, userId),
     loadActiveCorrections(supabase, userId),
@@ -105,11 +124,19 @@ export async function buildContext(
     loadWeekSleep(supabase, userId),
     loadMealPlan(supabase, userId),
     retrieveKnowledge(supabase, userId, opts),
+    loadTrainingSets(supabase, userId, TRAINING_WEEKS),
   ])
+
+  const latestMeasurement = measurements[0] ?? null
+  const todayKey = localDayKey(new Date())
+  const todayMeals = allWeekMeals.filter(
+    (m) => localDayKey(new Date(m.eaten_at)) === todayKey,
+  )
+  const weekMeals = allWeekMeals
 
   const parts: string[] = []
   const now = new Date()
-  const todayIso = now.toISOString().slice(0, 10)
+  const todayIso = todayKey
   parts.push(`# Contesto attuale (${formatDate(now)})`)
 
   // --- Profilo ---
@@ -203,7 +230,7 @@ export async function buildContext(
   if (weekMeals.length > 0) {
     const byDay = new Map<string, MealEntry[]>()
     for (const m of weekMeals) {
-      const day = m.eaten_at.slice(0, 10)
+      const day = localDayKey(new Date(m.eaten_at))
       if (day === todayIso) continue
       if (!byDay.has(day)) byDay.set(day, [])
       byDay.get(day)!.push(m)
@@ -237,10 +264,24 @@ export async function buildContext(
     }
   }
 
-  // --- Allenamenti (ultimi 7 giorni) ---
+  // --- Allenamento strutturato: analisi calcolata, non dedotta ---
+  const trainingAnalysis = analyzeTraining(
+    training.sets,
+    TRAINING_WEEKS,
+    training.sessions.length,
+  )
+  if (training.sessions.length > 0) {
+    parts.push(formatTrainingContext(trainingAnalysis, TRAINING_WEEKS))
+    const recent = formatRecentSessions(training.sessions, training.sets)
+    if (recent.length > 0) {
+      parts.push('### Ultime sedute\n' + recent.join('\n'))
+    }
+  }
+
+  // --- Allenamenti generici / cardio (ultimi 7 giorni) ---
   if (weekWorkouts.length > 0) {
     const totalMin = weekWorkouts.reduce((s, w) => s + w.duration_min, 0)
-    parts.push('## Allenamenti (ultimi 7 giorni)')
+    parts.push('## Altre attività, cardio e sport (ultimi 7 giorni)')
     parts.push(
       `Totale: ${weekWorkouts.length} sessioni, ${totalMin} min.`,
     )
@@ -306,6 +347,49 @@ export async function buildContext(
     }
   }
 
+  // --- Analisi automatica: verdetti già calcolati ---
+  // Passiamo al modello conclusioni deterministiche (kcal/kg, aderenza,
+  // volume, squilibri) invece di lasciargliele ricavare a occhio.
+  const nutritionFacts = buildNutritionFacts(profile, measurements, weekMeals)
+  const nutritionAnalysis = analyzeNutrition(nutritionFacts)
+
+  const derived: string[] = []
+  if (nutritionAnalysis.kcalPerKg != null) {
+    derived.push(`Introito target: ${nutritionAnalysis.kcalPerKg} kcal/kg`)
+  }
+  if (nutritionAnalysis.proteinPerKg != null) {
+    derived.push(`Proteine target: ${nutritionAnalysis.proteinPerKg} g/kg`)
+  }
+  if (nutritionAnalysis.weeklyWeightChangePct != null) {
+    derived.push(
+      `Variazione peso: ${nutritionAnalysis.weeklyWeightChangePct}%/settimana (su 28 giorni)`,
+    )
+  }
+  if (derived.length > 0) {
+    parts.push('## Indicatori calcolati\n' + derived.join(' · '))
+  }
+
+  const allFindings = [
+    ...nutritionAnalysis.findings,
+    ...trainingAnalysis.findings.filter((f) => f.code !== 'no_training_data'),
+  ]
+  const findingsBlock = formatFindings(
+    allFindings,
+    'Rilievi automatici (già verificati sui dati)',
+  )
+  if (findingsBlock) {
+    parts.push(
+      findingsBlock +
+        '\n\nQuesti rilievi sono calcolati sui dati reali: tienine conto nella risposta, ma citali solo se pertinenti alla domanda.',
+    )
+  }
+
+  // --- Principi guida dai libri di riferimento ---
+  const kb = selectKnowledge(opts?.queryText ?? '', {
+    includeTraining: training.sessions.length > 0,
+  })
+  parts.push(kb.text)
+
   // --- Knowledge base (RAG) ---
   if (knowledgeHits.length > 0) {
     parts.push('## Knowledge base — passaggi rilevanti')
@@ -339,10 +423,12 @@ async function loadProfile(
   return (data as Profile) ?? null
 }
 
-async function loadLatestMeasurement(
+// Ultime misure: la più recente serve al profilo, le altre a calcolare
+// il trend di peso su 28 giorni per i rilievi automatici.
+async function loadRecentMeasurements(
   supabase: SupabaseClient,
   userId: string,
-): Promise<Measurement | null> {
+): Promise<Measurement[]> {
   const { data } = await supabase
     .from('measurements')
     .select(
@@ -350,27 +436,8 @@ async function loadLatestMeasurement(
     )
     .eq('user_id', userId)
     .order('measured_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  return (data as Measurement) ?? null
-}
-
-async function loadTodayMeals(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<MealEntry[]> {
-  const start = startOfLocalDay()
-  const end = endOfLocalDay()
-  const { data } = await supabase
-    .from('meal_entries')
-    .select(
-      'eaten_at, meal_type, food_name, grams, kcal, protein_g, carb_g, fat_g',
-    )
-    .eq('user_id', userId)
-    .gte('eaten_at', start)
-    .lte('eaten_at', end)
-    .order('eaten_at')
-  return (data as MealEntry[]) ?? []
+    .limit(40)
+  return (data as Measurement[]) ?? []
 }
 
 async function loadWeekMeals(
@@ -424,10 +491,14 @@ async function loadWeekWorkouts(
   const start = new Date()
   start.setDate(start.getDate() - 6)
   start.setHours(0, 0, 0, 0)
+  // Le righe con session_id sono lo specchio di una sessione strutturata,
+  // già raccontata in dettaglio nella sezione precedente: includerle qui
+  // farebbe contare al modello lo stesso allenamento due volte.
   const { data } = await supabase
     .from('workouts')
     .select('started_at, duration_min, workout_type, intensity, kcal_burned')
     .eq('user_id', userId)
+    .is('session_id', null)
     .gte('started_at', start.toISOString())
     .order('started_at', { ascending: false })
   return (data as WorkoutRow[]) ?? []
@@ -451,8 +522,22 @@ async function retrieveKnowledge(
 
   try {
     // Embed la query
-    const { embeddings } = await embedTexts(opts.openAiKey, [query])
+    const { embeddings, tokens_in } = await embedTexts(opts.openAiKey, [query])
     if (!embeddings[0]) return []
+
+    // Il costo dell'embedding va contabilizzato: altrimenti il budget
+    // mensile sottostima il consumo reale a ogni messaggio di chat.
+    if (tokens_in > 0) {
+      await recordUsage(
+        supabase,
+        userId,
+        'openai',
+        'text-embedding-3-small',
+        tokens_in,
+        0,
+        embeddingCostCents(tokens_in),
+      )
+    }
 
     // Similarity search via RPC
     const { data, error } = await supabase.rpc('match_knowledge_chunks', {
@@ -505,16 +590,77 @@ async function loadWeekSleep(
 // --------------------------------------------------------------
 // Utils
 // --------------------------------------------------------------
-function startOfLocalDay(): string {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d.toISOString()
+
+// Le Netlify Functions girano in UTC: senza forzare il fuso, tra
+// mezzanotte e le 2 italiane "oggi" per l'AI sarebbe il giorno prima.
+const APP_TZ = 'Europe/Rome'
+
+function localDayKey(d: Date): string {
+  // en-CA produce direttamente il formato YYYY-MM-DD.
+  return d.toLocaleDateString('en-CA', { timeZone: APP_TZ })
 }
 
-function endOfLocalDay(): string {
-  const d = new Date()
-  d.setHours(23, 59, 59, 999)
-  return d.toISOString()
+// Costruisce l'input del motore di regole nutrizionali.
+function buildNutritionFacts(
+  profile: Profile | null,
+  measurements: Measurement[],
+  weekMeals: MealEntry[],
+): NutritionFacts {
+  const latest = measurements[0] ?? null
+  const weightKg = latest?.weight_kg != null ? Number(latest.weight_kg) : null
+
+  // Peso di 28 giorni fa: la misura più vicina a quella data.
+  let weightDelta28d: number | null = null
+  if (weightKg != null) {
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - 28)
+    const cutoffKey = cutoff.toISOString().slice(0, 10)
+    const older = measurements.find(
+      (m) => m.measured_at <= cutoffKey && m.weight_kg != null,
+    )
+    if (older?.weight_kg != null) {
+      weightDelta28d = Math.round((weightKg - Number(older.weight_kg)) * 100) / 100
+    }
+  }
+
+  // Medie sui soli giorni effettivamente loggati.
+  const byDay = new Map<string, { kcal: number; protein: number }>()
+  for (const m of weekMeals) {
+    const day = localDayKey(new Date(m.eaten_at))
+    const cur = byDay.get(day) ?? { kcal: 0, protein: 0 }
+    cur.kcal += Number(m.kcal)
+    cur.protein += Number(m.protein_g)
+    byDay.set(day, cur)
+  }
+  const days = [...byDay.values()]
+  const avgKcal7d =
+    days.length > 0
+      ? Math.round(days.reduce((s, d) => s + d.kcal, 0) / days.length)
+      : null
+  const avgProtein7d =
+    days.length > 0
+      ? Math.round(days.reduce((s, d) => s + d.protein, 0) / days.length)
+      : null
+
+  const bf =
+    latest?.body_fat_visual_pct ??
+    latest?.body_fat_scale_pct ??
+    latest?.body_fat_pct ??
+    null
+
+  return {
+    sex: profile?.sex ?? null,
+    weightKg,
+    bodyFatPct: bf != null ? Number(bf) : null,
+    goalType: profile?.goal_type ?? null,
+    targetKcal: profile?.target_kcal ?? null,
+    targetProteinG: profile?.target_protein_g ?? null,
+    targetFatG: profile?.target_fat_g ?? null,
+    avgKcal7d,
+    avgProtein7d,
+    daysLogged7d: days.length,
+    weightDelta28d,
+  }
 }
 
 function yearsOld(birthDateIso: string): number {

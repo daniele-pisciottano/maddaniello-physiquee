@@ -138,13 +138,28 @@ Composizioni riutilizzabili (es. "Pollo e riso", "Colazione tipo").
 - **Totale + per porzione** calcolati live
 - Modifica/elimina ricette dal list
 
-### Training (`/training`)
+### Allenamento (`/allenamento`)
+
+Il tracking della sala pesi, con quattro schede.
+
+**Schede** — le tue routine, raggruppate per programma. Ogni scheda contiene gli esercizi con serie, range di ripetizioni, RPE target e recupero. Mentre la costruisci vedi in tempo reale quante serie stai assegnando a ogni gruppo muscolare: è il modo più rapido per accorgerti di uno squilibrio prima di allenarti. Da qui parti con "Inizia".
+
+**Allenamento in corso** — il logger. Per ogni esercizio hai la colonna *Precedente* con quello che avevi fatto l'ultima volta (tap per copiarlo), i campi kg e ripetizioni, e la spunta che chiude la serie e fa partire il timer di recupero. Puoi marcare le serie come riscaldamento, drop set, a cedimento o back-off; il riscaldamento non conta nel volume. Alla chiusura la sessione calcola i record personali e crea da sola la voce corrispondente in Recupero, così il bilancio calorico resta allineato.
+
+**Storico** — tutte le sedute completate, espandibili per rivedere serie e carichi, con il badge sui record.
+
+**Statistiche** — serie settimanali per gruppo muscolare confrontate col riferimento 10-20, andamento del volume, e i massimali stimati per esercizio con la curva di progressione.
+
+**Coach AI** — quattro azioni: fa il punto sulle ultime 6 settimane, analizza una scheda, prepara la seduta successiva proponendo i carichi sulla base del tuo storico, oppure genera un programma completo da una richiesta in linguaggio naturale ("4 giorni, ipertrofia, un'ora a seduta"). Il programma generato può essere salvato come schede vere con un tap.
+
+### Recupero (`/training`)
 
 3 sezioni stacked:
 
-**Allenamenti**: quick-form (tipo, durata, intensità low/moderate/high, kcal opzionali, note). Ultime 10 sessioni visibili.
+**Attività generiche**: quick-form (tipo, durata, intensità low/moderate/high, kcal opzionali, note) per cardio, corsa, sport. Le sedute di pesi si registrano in Allenamento e compaiono qui automaticamente.
 
-**Sonno**: un'entry per notte (data = risveglio). Quality da 1 a 5. Bedtime/wake time opzionali. Se sovrascrivi la stessa data, fai upsert. Mostra media settimanale.
+**Sonno**: un'entry per notte (data = risveglio).
+ Quality da 1 a 5. Bedtime/wake time opzionali. Se sovrascrivi la stessa data, fai upsert. Mostra media settimanale.
 
 **Integratori**: due livelli.
 - **Catalogo**: aggiungi gli integratori ricorrenti una volta (es. "Creatina 5g", "Vit D 2000 UI")
@@ -284,8 +299,13 @@ Carica guide/studi/articoli che vuoi che l'AI segua. Esempi utili:
 
 L'AI pesca i passaggi rilevanti automaticamente quando parli di temi affini.
 
-### 5. Review consistenti
-Genera review ogni 14 giorni. L'AI migliora i suggerimenti nel tempo quando vede la storia delle review applicate.
+Oltre ai documenti che carichi tu, l'AI ha già dentro i principi di **Project Nutrition** (Biasci) per la nutrizione e **Project Exercise** (Roncari) per biomeccanica e programmazione: reset metabolico, bilancio settimanale, ricariche, volume 10-20 serie per gruppo muscolare, bilanciamento dei pattern, miti da palestra smontati. Vengono attivati per argomento, quindi non appesantiscono ogni messaggio.
+
+### 5. I rilievi automatici
+Prima di rispondere, l'app calcola da sola alcune conclusioni sui tuoi dati — kcal/kg, aderenza reale ai target, velocità di variazione del peso, serie settimanali per gruppo muscolare, squilibri spinta/trazione, esercizi in stallo — e le passa all'AI come fatti già verificati. Significa due cose: i numeri nelle risposte non sono stimati a occhio, e se un rilievo è un blocco (per esempio "stai già sotto la soglia di kcal/kg, non è il momento di tagliare") l'AI non ti asseconderà se chiedi il contrario.
+
+### 6. Review consistenti
+Genera review ogni 14 giorni. Da questa versione la review legge anche l'allenamento: distingue uno stallo da deficit sbagliato da uno stallo da stimolo insufficiente, cosa che con i soli dati alimentari non era possibile. L'AI migliora i suggerimenti nel tempo quando vede la storia delle review applicate.
 
 ---
 

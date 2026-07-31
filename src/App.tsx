@@ -39,6 +39,18 @@ const Training = lazy(() =>
     import('./routes/Training').then((m) => ({ default: m.Training })),
   ),
 )
+const Workout = lazy(() =>
+  importWithReload(() =>
+    import('./routes/Workout').then((m) => ({ default: m.Workout })),
+  ),
+)
+const ActiveSession = lazy(() =>
+  importWithReload(() =>
+    import('./routes/workout/ActiveSession').then((m) => ({
+      default: m.ActiveSession,
+    })),
+  ),
+)
 const Trends = lazy(() =>
   importWithReload(() =>
     import('./routes/Trends').then((m) => ({ default: m.Trends })),
@@ -90,6 +102,11 @@ export function App() {
         <Route path="/chat" element={<Lazy><Chat /></Lazy>} />
         <Route path="/reviews" element={<Lazy><Reviews /></Lazy>} />
         <Route path="/training" element={<Lazy><Training /></Lazy>} />
+        <Route path="/allenamento" element={<Lazy><Workout /></Lazy>} />
+        <Route
+          path="/allenamento/sessione"
+          element={<Lazy><ActiveSession /></Lazy>}
+        />
         <Route path="/andamento" element={<Lazy><Trends /></Lazy>} />
         <Route path="/progresso" element={<Lazy><Progresso /></Lazy>} />
         <Route path="/assessment" element={<Lazy><Assessment /></Lazy>} />

@@ -4,6 +4,7 @@ import {
   Utensils,
   ChefHat,
   Dumbbell,
+  Moon,
   MessageCircle,
   BarChart3,
   LineChart,
@@ -16,7 +17,8 @@ const items = [
   { to: '/', icon: Home, label: 'Oggi', disabled: false },
   { to: '/meals', icon: Utensils, label: 'Pasti', disabled: false },
   { to: '/recipes', icon: ChefHat, label: 'Ricette', disabled: false },
-  { to: '/training', icon: Dumbbell, label: 'Training', disabled: false },
+  { to: '/allenamento', icon: Dumbbell, label: 'Allenamento', disabled: false },
+  { to: '/training', icon: Moon, label: 'Recupero', disabled: false },
   { to: '/chat', icon: MessageCircle, label: 'Chat AI', disabled: false },
   { to: '/andamento', icon: LineChart, label: 'Andamento', disabled: false },
   { to: '/progresso', icon: Camera, label: 'Progresso', disabled: false },
@@ -61,7 +63,7 @@ export function Sidebar() {
         ))}
       </nav>
       <div className="border-t border-border p-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-        v0.2 · phase 2
+        v0.3 · allenamento
       </div>
     </aside>
   )

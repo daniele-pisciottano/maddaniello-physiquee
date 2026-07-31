@@ -26,10 +26,10 @@ import { QuickMemoryDialog } from './chat/QuickMemoryDialog'
 const SUGGESTIONS = [
   'Cosa posso mangiare a cena stasera?',
   'Generami un menu settimanale usando i miei alimenti, target e regole',
-  'Analizza la mia giornata nutrizionale',
-  'Dammi 3 idee di spuntino sotto le 200 kcal',
   'Come sto andando con i target questa settimana?',
-  'Cosa mi manca per arrivare al target di oggi?',
+  'Il mio volume di allenamento è adeguato per il mio obiettivo?',
+  'Perché sono fermo con i carichi sulla panca?',
+  'La mia settimana di allenamento è bilanciata?',
 ]
 
 export function Chat() {
@@ -161,8 +161,10 @@ export function Chat() {
         </Button>
       </div>
       <p className="mt-2 text-[10px] text-muted-foreground">
-        L'AI vede profilo, target, pasti di oggi e settimana, regole alimentari,
-        correzioni apprese. Risponde in base al tuo system prompt attivo.
+        L'AI vede profilo, target, pasti di oggi e della settimana, regole
+        alimentari, correzioni apprese, piano alimentare, sonno, le sedute di
+        allenamento con volume per gruppo muscolare, e i documenti della tua
+        knowledge base. Risponde in base al tuo system prompt attivo.
       </p>
 
       <QuickMemoryDialog open={memoryOpen} onOpenChange={setMemoryOpen} />

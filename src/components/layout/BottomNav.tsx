@@ -1,12 +1,13 @@
 import { NavLink } from 'react-router-dom'
-import { Home, Utensils, ChefHat, MessageCircle, Settings } from 'lucide-react'
+import { Home, Utensils, Dumbbell, MessageCircle, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-// 5 tab ottimali per mobile: Oggi, Pasti, Ricette, Chat (soon), Impostazioni
+// Le 5 azioni più frequenti. L'allenamento sta qui e non nell'hamburger:
+// si logga in palestra col telefono in una mano.
 const items = [
   { to: '/', icon: Home, label: 'Oggi', disabled: false },
   { to: '/meals', icon: Utensils, label: 'Pasti', disabled: false },
-  { to: '/recipes', icon: ChefHat, label: 'Ricette', disabled: false },
+  { to: '/allenamento', icon: Dumbbell, label: 'Allena', disabled: false },
   { to: '/chat', icon: MessageCircle, label: 'Chat', disabled: false },
   { to: '/settings', icon: Settings, label: 'Impost.', disabled: false },
 ]

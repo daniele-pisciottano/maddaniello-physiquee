@@ -23,8 +23,10 @@ Poi apri `.env.local` e inserisci dal progetto Supabase (Settings → API):
 
 ### 3. Applica lo schema DB
 1. Apri Supabase → **SQL Editor** → **New query**
-2. Incolla il contenuto di [`supabase/migrations/0001_initial_schema.sql`](./supabase/migrations/0001_initial_schema.sql)
-3. **Run**
+2. Esegui le migration **in ordine numerico**, da [`0001_initial_schema.sql`](./supabase/migrations/0001_initial_schema.sql) a `0013_exercise_seed.sql`: ognuna assume che le precedenti siano già applicate.
+3. **Run** per ciascuna
+
+Le migration sono idempotenti (`if not exists`, `on conflict do nothing`): rieseguirle non rompe nulla.
 
 ### 4. Config Supabase Auth
 - Supabase → **Authentication → Providers → Email**: abilita "Email" provider
@@ -97,6 +99,7 @@ maddaniello-physique/
 | Fase | Stato | Contenuto |
 |---|---|---|
 | **0. Setup** | ✅ | Auth, layout, routing, PWA, design system |
+| **12. Workout tracking** | ✅ | Libreria esercizi, schede, logger in-sessione, PR, volume per gruppo muscolare, coach AI |
 | 1. Profilo & misure | ⏳ | CRUD profile, measurements, grafico peso, export JSON |
 | 2. Food DB & log manuale | ⏳ | Open Food Facts, barcode scanner, custom foods, ricette |
 | 3. Dashboard oggi | ⏳ | Anello kcal, barre macro, quick-add |
@@ -110,6 +113,34 @@ maddaniello-physique/
 | 11. Polish | ⏳ | Animazioni, offline queue, install prompt |
 
 ---
+
+## Modulo allenamento
+
+`/allenamento` è il tracking della sala pesi, sul modello di Hevy:
+
+- **Libreria esercizi** (`exercise_catalog`): ~150 esercizi globali con nomi italiani e alias, più i custom dell'utente. Ogni esercizio porta i metadati biomeccanici (note, cue esecutivi, errori comuni con causa e correzione, controindicazioni) derivati da *Project Exercise*.
+- **Schede e programmi** (`routine_folders` → `routines` → `routine_exercises` → `routine_sets`): superset, range di ripetizioni, RPE target, recuperi.
+- **Logger in sessione** (`workout_sessions` → `session_exercises` → `session_sets`): serie con peso, ripetizioni, RPE/RIR, tipo serie (riscaldamento, drop, cedimento, back-off), timer di recupero, precompilazione con la prestazione precedente.
+- **Record personali** (`personal_records`): massimale stimato con Epley, carico massimo, volume su singola serie. Rilevati automaticamente alla chiusura della sessione.
+- **Statistiche**: serie settimanali per gruppo muscolare rispetto al riferimento 10-20, andamento del volume, curve di progressione per esercizio.
+
+Completare una sessione crea anche la riga corrispondente in `workouts`, così Home, Andamento e il bilancio calorico continuano a funzionare senza doppia registrazione.
+
+### Coach AI
+
+`ai-training-coach` copre quattro azioni: analisi di una scheda, generazione di un programma (output JSON validato contro il catalogo reale, così non può inventare esercizi), preparazione della seduta successiva con carichi basati sullo storico, e punto della situazione sulle ultime 6 settimane.
+
+> **Nota sui timeout**: le function sincrone di Netlify si fermano a 10s sul piano free e 26s su Pro. `generate_routine` è l'azione più lunga e sul piano free può restituire un 502. Vale per tutte le chiamate AI del progetto, non solo per il coach.
+
+## Knowledge base e ragionamenti
+
+Il ragionamento dell'AI poggia su tre livelli, in `netlify/functions/_lib/`:
+
+1. **`kb/`** — i principi di *Project Nutrition* (Biasci) e *Project Exercise* (Roncari) come blocchi tematici. `selectKnowledge()` inietta sempre i due nuclei e solo gli approfondimenti attivati dalla domanda, per non pagare l'intera dottrina a ogni messaggio.
+2. **`coach/`** — motore di regole deterministico. Calcola kcal/kg, aderenza, velocità di variazione del peso, serie settimanali per gruppo muscolare, bilanciamento spinta/trazione e ginocchio/anca, stalli sui carichi. I verdetti arrivano al modello già calcolati (sezione *Rilievi automatici*), invece di essere dedotti a occhio.
+3. **RAG** (`knowledge_docs` / `knowledge_chunks`) — i documenti caricati dall'utente, recuperati per similarità.
+
+Le stesse analisi alimentano chat, coach allenamento e review di fase.
 
 ## Principi di progetto
 

@@ -12,16 +12,25 @@ type Body = { content: string }
 const MAX_HISTORY_MESSAGES = 20
 const MAX_CONTENT_LEN = 2000
 
-const DEFAULT_SP =
-  'Sei un companion nutrizionale personale italiano. Rispondi in modo conciso e diretto, usando markdown quando aiuta la leggibilità (liste, grassetto).'
+// Fallback allineato al prompt proposto lato client: se l'utente non ne
+// salva uno personalizzato l'AI deve comunque partire con un'identità
+// completa, non con una frase generica.
+const DEFAULT_SP = `Sei il coach personale di nutrizione e allenamento dell'utente, in italiano.
+Ragioni secondo due riferimenti: "Project Nutrition" di Andrea Biasci per la nutrizione e "Project Exercise" di Andrea Roncari per la biomeccanica e la programmazione. I principi guida che ricevi nel contesto vengono da lì e hanno priorità sulle convinzioni comuni da palestra.
+Sei diretto e concreto: dai numeri, non generici incoraggiamenti. Non sei servile e non addolcisci una diagnosi scomoda, ma non sei nemmeno allarmista.`
 
 const TASK_SUFFIX = `
 
 ---ISTRUZIONI DI RISPOSTA---
 - Rispondi in italiano, tono diretto e utile, non servile.
-- Usa numeri concreti (kcal, grammi) quando parli di nutrizione.
+- Usa numeri concreti (kcal, grammi, serie, kg) e i dati reali del contesto: non inventare valori che non ti sono stati dati.
+- I "Rilievi automatici" sono già calcolati sui dati: fidati di quei numeri invece di rifare i conti, e non contraddirli.
+- Se un rilievo è marcato ⛔ è un blocco: non proporre di procedere in quella direzione, spiega perché e indica l'alternativa corretta.
 - Se suggerisci cibi, **rispetta le regole alimentari attive** e le preferenze apprese.
 - Se l'utente chiede "cosa mangio a X", considera cosa ha già consumato oggi e cosa gli manca per il target.
+- Sull'allenamento: ragiona su volume settimanale per gruppo muscolare (riferimento 10-20 serie), frequenza, bilanciamento spinta/trazione e ginocchio/anca, e progressione dei carichi. Non consigliare esercizi che i principi guida indicano come sconsigliati.
+- Distingui sempre ciò che è dimostrato da ciò che è opinione, e smonta i miti da palestra quando emergono.
+- Per dolori articolari persistenti, patologie diagnosticate o sintomi che non riguardano l'allenamento, indirizza a un medico o fisioterapista invece di improvvisare una diagnosi.
 - Se ti manca un dato cruciale per rispondere bene, chiedilo.
 - Markdown ok (liste, grassetto) ma niente titoli H1/H2, tieni breve.`
 
@@ -51,23 +60,32 @@ export const handler: Handler = async (event) => {
     )
   }
 
-  // 2. Active provider + credentials
-  const { data: settings } = await supabase
-    .from('ai_settings')
-    .select('active_provider')
-    .eq('user_id', userId)
-    .single()
+  // 2. Provider, credenziali e system prompt: query indipendenti, in
+  //    parallelo. Carichiamo tutte le credenziali in un colpo solo così
+  //    la key OpenAI per il RAG non richiede un secondo round-trip.
+  const [{ data: settings }, { data: allCreds }, { data: sp }] =
+    await Promise.all([
+      supabase
+        .from('ai_settings')
+        .select('active_provider')
+        .eq('user_id', userId)
+        .single(),
+      supabase
+        .from('ai_credentials')
+        .select('provider, encrypted_key, default_model')
+        .eq('user_id', userId),
+      supabase
+        .from('system_prompts')
+        .select('content')
+        .eq('user_id', userId)
+        .eq('active', true)
+        .maybeSingle(),
+    ])
 
   const provider = settings?.active_provider as Provider | null
   if (!provider) return fail(409, 'Nessun provider AI attivo')
 
-  const { data: cred } = await supabase
-    .from('ai_credentials')
-    .select('encrypted_key, default_model')
-    .eq('user_id', userId)
-    .eq('provider', provider)
-    .single()
-
+  const cred = (allCreds ?? []).find((c) => c.provider === provider)
   if (!cred) return fail(409, `API key ${provider} non configurata`)
   if (!cred.default_model) return fail(409, 'Modello di default non configurato')
 
@@ -81,13 +99,6 @@ export const handler: Handler = async (event) => {
     )
   }
 
-  // 3. System prompt attivo
-  const { data: sp } = await supabase
-    .from('system_prompts')
-    .select('content')
-    .eq('user_id', userId)
-    .eq('active', true)
-    .maybeSingle()
   const systemPrompt = sp?.content?.trim() || DEFAULT_SP
 
   // 4. Inserisci il messaggio utente PRIMA di chiamare l'AI,
@@ -98,18 +109,14 @@ export const handler: Handler = async (event) => {
     content: userContent,
   })
 
-  // 5. Costruisci contesto fresco (inclusa retrieval RAG se abbiamo key OpenAI)
+  // 5. Contesto + storico in parallelo (indipendenti tra loro).
+  //    L'embedding del RAG richiede una key OpenAI: se il provider attivo
+  //    è un altro usiamo quella già caricata sopra, se c'è.
   let openAiKeyForEmbedding: string | undefined
   if (provider === 'openai') {
     openAiKeyForEmbedding = apiKey
   } else {
-    // Prova a leggere la key OpenAI separata (se configurata)
-    const { data: openaiCred } = await supabase
-      .from('ai_credentials')
-      .select('encrypted_key')
-      .eq('user_id', userId)
-      .eq('provider', 'openai')
-      .maybeSingle()
+    const openaiCred = (allCreds ?? []).find((c) => c.provider === 'openai')
     if (openaiCred) {
       try {
         openAiKeyForEmbedding = decrypt(openaiCred.encrypted_key)
@@ -119,18 +126,18 @@ export const handler: Handler = async (event) => {
     }
   }
 
-  const contextBlock = await buildContext(supabase, userId, {
-    queryText: userContent,
-    openAiKey: openAiKeyForEmbedding,
-  })
-
-  // 6. Carica storico (escludendo il messaggio appena inserito per evitare duplicati)
-  const { data: history } = await supabase
-    .from('chat_messages')
-    .select('role, content')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(MAX_HISTORY_MESSAGES + 1) // +1 perché includiamo quello appena inserito
+  const [contextBlock, { data: history }] = await Promise.all([
+    buildContext(supabase, userId, {
+      queryText: userContent,
+      openAiKey: openAiKeyForEmbedding,
+    }),
+    supabase
+      .from('chat_messages')
+      .select('role, content')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(MAX_HISTORY_MESSAGES + 1) // +1: include quello appena inserito
+  ])
   const historyMsgs = ((history ?? []) as Array<{ role: string; content: string }>)
     .reverse()
     .slice(-MAX_HISTORY_MESSAGES)

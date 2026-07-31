@@ -24,6 +24,10 @@ const TABLES = [
   'sleep_entries',
   'supplements',
   'supplement_log',
+  'routine_folders',
+  'routines',
+  'workout_sessions',
+  'personal_records',
   'phase_reviews',
   'chat_messages',
   'learned_corrections',
@@ -45,28 +49,33 @@ export function ExportSection() {
         user: { id: user.id, email: user.email },
       }
 
-      for (const table of TABLES) {
-        // recipe_items è filtrato via join: prendi quelli delle mie ricette
-        if (table === 'recipe_items') {
-          const { data, error } = await supabase
-            .from('recipe_items')
-            .select('*, recipes!inner(user_id)')
-            .eq('recipes.user_id', user.id)
-          if (error) throw new Error(`${table}: ${error.message}`)
-          payload[table] = (data ?? []).map((r: Record<string, unknown>) => {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { recipes: _r, ...rest } = r
-            return rest
-          })
-        } else {
+      // Le tabelle sono indipendenti: in sequenza sarebbero venti
+      // round-trip uno dopo l'altro.
+      const results = await Promise.all(
+        TABLES.map(async (table) => {
+          // recipe_items è filtrato via join: prendi quelli delle mie ricette
+          if (table === 'recipe_items') {
+            const { data, error } = await supabase
+              .from('recipe_items')
+              .select('*, recipes!inner(user_id)')
+              .eq('recipes.user_id', user.id)
+            if (error) throw new Error(`${table}: ${error.message}`)
+            const rows = (data ?? []).map((r: Record<string, unknown>) => {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { recipes: _r, ...rest } = r
+              return rest
+            })
+            return [table, rows] as const
+          }
           const { data, error } = await supabase
             .from(table)
             .select('*')
             .eq('user_id', user.id)
           if (error) throw new Error(`${table}: ${error.message}`)
-          payload[table] = data ?? []
-        }
-      }
+          return [table, data ?? []] as const
+        }),
+      )
+      for (const [table, rows] of results) payload[table] = rows
 
       const blob = new Blob([JSON.stringify(payload, null, 2)], {
         type: 'application/json',
