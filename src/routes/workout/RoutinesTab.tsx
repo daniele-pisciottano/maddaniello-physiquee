@@ -29,8 +29,9 @@ import {
   useRoutines,
 } from '@/features/workout/useRoutines'
 import { useActiveSession, useStartSession } from '@/features/workout/useSessions'
+import { WEEKDAY_LABELS } from '@/features/workout/types'
 import type { Routine, RoutineFolder } from '@/features/workout/types'
-import { RoutineEditor, WEEKDAY_LABELS } from './RoutineEditor'
+import { RoutineEditor } from './RoutineEditor'
 
 export function RoutinesTab() {
   const navigate = useNavigate()
@@ -350,6 +351,7 @@ function RoutineCard({
         <Button
           type="button"
           size="sm"
+          className="h-10 px-4"
           onClick={() => onStart(routine)}
           disabled={starting}
         >
@@ -360,6 +362,7 @@ function RoutineCard({
           type="button"
           size="sm"
           variant="outline"
+          className="h-10 px-4"
           onClick={() => onEdit(routine.id)}
         >
           <Pencil className="h-3.5 w-3.5" />
@@ -370,7 +373,9 @@ function RoutineCard({
           size="sm"
           variant="ghost"
           onClick={() => onDelete(routine)}
-          className={cn('ml-auto text-muted-foreground hover:text-destructive')}
+          className={cn(
+            'ml-auto h-10 px-3 text-muted-foreground hover:text-destructive',
+          )}
         >
           <Trash2 className="h-3.5 w-3.5" />
           Elimina

@@ -22,6 +22,7 @@ import {
 } from '@/features/meals/useMeals'
 import { useProfile } from '@/features/profile/useProfile'
 import { MEAL_TYPE_LABELS, round0, round1 } from '@/lib/macro'
+import { SectionHelp } from '@/components/tutorial/SectionHelp'
 
 function toLocalDateStr(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -79,8 +80,9 @@ export function Meals() {
       {/* Header con navigazione data */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+          <p className="flex items-center gap-1 text-xs uppercase tracking-widest text-muted-foreground">
             Pasti
+            <SectionHelp id="meals" />
           </p>
           <button
             type="button"
@@ -192,7 +194,10 @@ export function Meals() {
       <Button
         type="button"
         onClick={() => openAdd()}
-        className="fixed bottom-20 right-4 z-20 h-14 w-14 rounded-full shadow-lg md:bottom-6 md:right-6"
+        // Il FAB sta sopra la BottomNav, che a sua volta rispetta la safe
+        // area: senza questo su iPhone finisce sopra l'home indicator.
+        style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom))' }}
+        className="fixed right-4 z-20 h-14 w-14 rounded-full shadow-lg md:!bottom-6 md:right-6"
         size="icon"
         aria-label="Aggiungi pasto"
       >

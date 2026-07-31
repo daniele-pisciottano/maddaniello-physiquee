@@ -317,42 +317,40 @@ function RecordsCard({
             di ogni seduta.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-[10px] uppercase tracking-widest text-muted-foreground">
-                  <th className="py-2 pr-3 font-normal">Esercizio</th>
-                  <th className="py-2 pr-3 text-right font-normal">1RM stim.</th>
-                  <th className="py-2 pr-3 text-right font-normal">Serie</th>
-                  <th className="py-2 text-right font-normal">Data</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr
-                    key={r.id}
-                    onClick={() => onOpenExercise(r.exerciseId)}
-                    className="cursor-pointer border-b border-border/60 transition-colors last:border-0 hover:bg-secondary"
-                  >
-                    <td className="py-2 pr-3">{r.name}</td>
-                    <td className="py-2 pr-3 text-right font-mono tabular font-semibold text-primary">
-                      {r.value} kg
-                    </td>
-                    <td className="py-2 pr-3 text-right font-mono tabular text-muted-foreground">
+          // Lista invece di tabella: a 375px quattro colonne mandavano a
+          // capo sia il carico sia la data, rendendole illeggibili.
+          <ul className="divide-y divide-border/60">
+            {rows.map((r) => (
+              <li key={r.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpenExercise(r.exerciseId)}
+                  className="flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-secondary"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{r.name}</p>
+                    <p className="text-xs text-muted-foreground">
                       {r.weight != null && r.reps != null
-                        ? `${r.weight} × ${r.reps}`
+                        ? `${r.weight} kg × ${r.reps}`
                         : '—'}
-                    </td>
-                    <td className="py-2 text-right text-xs text-muted-foreground">
+                      {' · '}
                       {format(parseISO(r.achievedAt), 'd MMM yyyy', {
                         locale: it,
                       })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-right">
+                    <span className="block font-mono tabular text-sm font-semibold text-primary">
+                      {r.value} kg
+                    </span>
+                    <span className="block text-[10px] uppercase tracking-wider text-muted-foreground">
+                      1RM stim.
+                    </span>
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </CardContent>
     </Card>

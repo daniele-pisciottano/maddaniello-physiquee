@@ -6,6 +6,7 @@ Companion nutrizionale personale AI. Traccia alimentazione, allenamenti, sonno, 
 
 ## Indice
 
+0. [Guida in-app](#guida-in-app)
 1. [Setup iniziale](#setup-iniziale)
 2. [Panoramica sezioni](#panoramica-sezioni)
 3. [Flusso giornaliero consigliato](#flusso-giornaliero-consigliato)
@@ -15,6 +16,14 @@ Companion nutrizionale personale AI. Traccia alimentazione, allenamenti, sonno, 
 7. [Troubleshooting](#troubleshooting)
 
 ---
+
+## Guida in-app
+
+Al primo accesso parte da sola una guida in dieci passaggi: cosa fa l'app, la checklist di configurazione (che mostra quali passaggi hai già completato davvero) e una scheda per ogni sezione principale, con il pulsante per saltarci dentro.
+
+Puoi rilanciarla quando vuoi da **Impostazioni → Guida all'uso → Rivedi la guida**: riparte sempre dall'inizio, quindi è anche il modo per ricontrollarla dopo averla saltata.
+
+Per la singola sezione c'è il pulsante **?** accanto all'etichetta in cima a ogni pagina: apre la spiegazione di quella sezione soltanto, senza far ripartire tutto il tour.
 
 ## Setup iniziale
 

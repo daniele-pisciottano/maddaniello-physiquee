@@ -305,6 +305,17 @@ export const MUSCLE_ORDER = [
   'cardio',
 ]
 
+// Indici 0-6 come il CHECK di `routines.weekday` (0 = lunedì).
+export const WEEKDAY_LABELS: Record<number, string> = {
+  0: 'Lunedì',
+  1: 'Martedì',
+  2: 'Mercoledì',
+  3: 'Giovedì',
+  4: 'Venerdì',
+  5: 'Sabato',
+  6: 'Domenica',
+}
+
 export function muscleLabel(m: string): string {
   return MUSCLE_LABELS[m] ?? m
 }

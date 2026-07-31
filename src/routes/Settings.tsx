@@ -1,3 +1,4 @@
+import { GuideSection } from './settings/GuideSection'
 import { ProfileSection } from './settings/ProfileSection'
 import { GoalSection } from './settings/GoalSection'
 import { TargetsSection } from './settings/TargetsSection'
@@ -10,13 +11,15 @@ import { CorrectionsSection } from './settings/CorrectionsSection'
 import { KnowledgeSection } from './settings/KnowledgeSection'
 import { ExportSection } from './settings/ExportSection'
 import { DangerZoneSection } from './settings/DangerZoneSection'
+import { SectionHelp } from '@/components/tutorial/SectionHelp'
 
 export function Settings() {
   return (
     <div className="space-y-8">
       <div>
-        <p className="text-xs uppercase tracking-widest text-muted-foreground">
+        <p className="flex items-center gap-1 text-xs uppercase tracking-widest text-muted-foreground">
           Impostazioni
+          <SectionHelp id="settings" />
         </p>
         <h2 className="mt-1 font-mono text-3xl font-semibold tracking-tight">
           Profilo, AI & dati
@@ -25,6 +28,7 @@ export function Settings() {
           Dati personali, obiettivo, misure, configurazione AI e backup.
         </p>
       </div>
+      <GuideSection />
       <ProfileSection />
       <GoalSection />
       <TargetsSection />

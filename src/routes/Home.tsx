@@ -45,6 +45,7 @@ import { Button } from '@/components/ui/Button'
 import { QuickWeighDialog } from '@/components/QuickWeighDialog'
 import { cn } from '@/lib/utils'
 import { round0 } from '@/lib/macro'
+import { SectionHelp } from '@/components/tutorial/SectionHelp'
 
 function toLocalDateStr(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -182,8 +183,9 @@ export function Home() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+          <p className="flex items-center gap-1 text-xs uppercase tracking-widest text-muted-foreground">
             Dashboard
+            <SectionHelp id="home" />
           </p>
           <button
             type="button"

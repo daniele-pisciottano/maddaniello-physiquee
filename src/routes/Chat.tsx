@@ -22,6 +22,7 @@ import {
   type ChatMessageRow,
 } from '@/features/ai/useChat'
 import { QuickMemoryDialog } from './chat/QuickMemoryDialog'
+import { SectionHelp } from '@/components/tutorial/SectionHelp'
 
 const SUGGESTIONS = [
   'Cosa posso mangiare a cena stasera?',
@@ -79,13 +80,16 @@ export function Chat() {
     }
   }
 
+  // dvh e non vh: su iOS 100vh include la barra degli indirizzi, quindi il
+  // campo di input finiva sotto il bordo visibile dello schermo.
   return (
-    <div className="flex h-[calc(100vh-9rem)] flex-col md:h-[calc(100vh-6rem)]">
+    <div className="flex h-[calc(100dvh-9rem)] flex-col md:h-[calc(100dvh-6rem)]">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 pb-4">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+          <p className="flex items-center gap-1 text-xs uppercase tracking-widest text-muted-foreground">
             Companion
+            <SectionHelp id="chat" />
           </p>
           <h2 className="mt-1 font-mono text-2xl font-semibold tracking-tight sm:text-3xl">
             Chat AI
@@ -161,10 +165,8 @@ export function Chat() {
         </Button>
       </div>
       <p className="mt-2 text-[10px] text-muted-foreground">
-        L'AI vede profilo, target, pasti di oggi e della settimana, regole
-        alimentari, correzioni apprese, piano alimentare, sonno, le sedute di
-        allenamento con volume per gruppo muscolare, e i documenti della tua
-        knowledge base. Risponde in base al tuo system prompt attivo.
+        L'AI vede profilo, target, pasti, allenamenti con volume per gruppo
+        muscolare, sonno, regole e knowledge base.
       </p>
 
       <QuickMemoryDialog open={memoryOpen} onOpenChange={setMemoryOpen} />

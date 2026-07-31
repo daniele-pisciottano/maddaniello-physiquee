@@ -79,15 +79,17 @@ export function ExercisePickerDialog({
         if (!o) reset()
       }}
     >
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Cerca per nome o filtra per gruppo muscolare e attrezzo.
-          </DialogDescription>
-        </DialogHeader>
+      {/* Colonna flex con lista scrollabile e footer fisso: su mobile il
+          pulsante di conferma deve restare sempre a portata di pollice. */}
+      <DialogContent className="flex max-h-[92dvh] max-w-2xl flex-col gap-0 overflow-hidden p-0 sm:p-0">
+        <DialogHeader className="shrink-0 space-y-3 p-4 pb-3 sm:p-6 sm:pb-3">
+          <div className="pr-8">
+            <DialogTitle>{title}</DialogTitle>
+            <DialogDescription>
+              Cerca per nome o filtra per gruppo muscolare e attrezzo.
+            </DialogDescription>
+          </div>
 
-        <div className="space-y-3">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -95,13 +97,13 @@ export function ExercisePickerDialog({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="es. panca, squat, trazioni…"
-              className="pl-9"
+              className="h-11 pl-9"
             />
           </div>
 
           <FilterRow
             label="Muscolo"
-            options={MUSCLE_ORDER.map((m) => [m, muscleLabel(m)])}
+            options={MUSCLE_ORDER.map((m) => [m, muscleLabel(m)] as [string, string])}
             value={muscle}
             onChange={setMuscle}
           />
@@ -111,9 +113,9 @@ export function ExercisePickerDialog({
             value={equipment}
             onChange={setEquipment}
           />
-        </div>
+        </DialogHeader>
 
-        <div className="max-h-[45vh] overflow-y-auto rounded-md border border-border">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain border-y border-border">
           {isLoading ? (
             <p className="p-4 text-sm text-muted-foreground">Caricamento…</p>
           ) : results.length === 0 ? (
@@ -131,10 +133,22 @@ export function ExercisePickerDialog({
                       type="button"
                       onClick={() => handleRowClick(ex)}
                       className={cn(
-                        'flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-secondary',
-                        isPicked && 'bg-secondary',
+                        'flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-secondary',
+                        isPicked && 'bg-primary/10',
                       )}
                     >
+                      {multiple && (
+                        <span
+                          className={cn(
+                            'flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors',
+                            isPicked
+                              ? 'border-primary bg-primary text-primary-foreground'
+                              : 'border-border',
+                          )}
+                        >
+                          {isPicked && <Check className="h-3.5 w-3.5" />}
+                        </span>
+                      )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <span className="truncate text-sm font-medium">
@@ -159,9 +173,6 @@ export function ExercisePickerDialog({
                           {ex.user_id && ' · personalizzato'}
                         </div>
                       </div>
-                      {isPicked && (
-                        <Check className="h-4 w-4 shrink-0 text-primary" />
-                      )}
                     </button>
                   </li>
                 )
@@ -170,18 +181,29 @@ export function ExercisePickerDialog({
           )}
         </div>
 
-        {multiple && (
-          <div className="flex items-center justify-between gap-3">
+        {multiple ? (
+          <div
+            className="flex shrink-0 items-center justify-between gap-3 p-4 sm:p-6"
+            style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+          >
             <span className="text-sm text-muted-foreground">
               {picked.length === 0
-                ? 'Nessun esercizio selezionato'
+                ? 'Tocca per selezionare'
                 : `${picked.length} selezionat${picked.length === 1 ? 'o' : 'i'}`}
             </span>
-            <Button type="button" onClick={confirm} disabled={picked.length === 0}>
+            <Button
+              type="button"
+              onClick={confirm}
+              disabled={picked.length === 0}
+              className="h-11 px-5"
+            >
               <Plus className="h-4 w-4" />
               Aggiungi
+              {picked.length > 0 && ` (${picked.length})`}
             </Button>
           </div>
+        ) : (
+          <div className="h-4 shrink-0" />
         )}
       </DialogContent>
     </Dialog>
@@ -199,16 +221,19 @@ function FilterRow({
   value: string | null
   onChange: (v: string | null) => void
 }) {
+  // `min-w-0` sul contenitore: senza, la riga di chip impone la propria
+  // larghezza al genitore invece di scorrere, e trascina fuori schermo
+  // tutto il resto della dialog.
   return (
-    <div className="flex items-center gap-2 overflow-x-auto pb-1">
-      <span className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+    <div className="flex min-w-0 items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <span className="sticky left-0 z-10 shrink-0 bg-card pr-1 text-[10px] uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
       <button
         type="button"
         onClick={() => onChange(null)}
         className={cn(
-          'shrink-0 rounded-full border border-border px-2.5 py-1 text-xs transition-colors',
+          'shrink-0 rounded-full border border-border px-3 py-1.5 text-xs transition-colors',
           value === null
             ? 'bg-secondary text-foreground'
             : 'text-muted-foreground hover:bg-secondary',
@@ -222,7 +247,7 @@ function FilterRow({
           type="button"
           onClick={() => onChange(value === key ? null : key)}
           className={cn(
-            'shrink-0 rounded-full border border-border px-2.5 py-1 text-xs transition-colors',
+            'shrink-0 rounded-full border border-border px-3 py-1.5 text-xs transition-colors',
             value === key
               ? 'bg-secondary text-foreground'
               : 'text-muted-foreground hover:bg-secondary',

@@ -32,7 +32,11 @@ export const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-card p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg max-h-[90vh] overflow-y-auto',
+        // `[&>*]:min-w-0`: i figli di un grid hanno min-width auto, quindi
+        // un contenuto largo (una riga di chip con overflow-x-auto, una
+        // tabella) allargava la colonna e con essa l'intera dialog oltre
+        // il bordo dello schermo, mandando fuori vista i pulsanti.
+        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-card p-4 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg sm:p-6 max-h-[92dvh] overflow-y-auto overscroll-contain [&>*]:min-w-0',
         className,
       )}
       {...props}

@@ -41,6 +41,7 @@ import {
   useUpdateSessionPhotoPath,
   type ProgressSession,
 } from '@/features/progress/useProgress'
+import { SectionHelp } from '@/components/tutorial/SectionHelp'
 
 export function Progresso() {
   const { data: sessions = [], isLoading } = useProgressSessions()
@@ -75,8 +76,9 @@ export function Progresso() {
     <div className="space-y-6 pb-20 md:pb-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+          <p className="flex items-center gap-1 text-xs uppercase tracking-widest text-muted-foreground">
             Progresso
+            <SectionHelp id="progress" />
           </p>
           <h2 className="mt-1 font-mono text-2xl font-semibold tracking-tight sm:text-3xl">
             Foto e analisi visuale

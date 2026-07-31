@@ -114,6 +114,14 @@ maddaniello-physique/
 
 ---
 
+## Preview UI senza backend
+
+```bash
+npm run preview:ui
+```
+
+Avvia l'app su `localhost:5199` con Supabase e l'autenticazione sostituiti da mock e la cache di React Query pre-caricata con dati finti (`preview/fixtures.ts`). Serve a controllare layout e responsive — soprattutto il mobile — senza credenziali e senza toccare dati reali. Non fa parte della build di produzione: `npm run build` non vede la cartella `preview/`.
+
 ## Modulo allenamento
 
 `/allenamento` è il tracking della sala pesi, sul modello di Hevy:
@@ -130,7 +138,7 @@ Completare una sessione crea anche la riga corrispondente in `workouts`, così H
 
 `ai-training-coach` copre quattro azioni: analisi di una scheda, generazione di un programma (output JSON validato contro il catalogo reale, così non può inventare esercizi), preparazione della seduta successiva con carichi basati sullo storico, e punto della situazione sulle ultime 6 settimane.
 
-> **Nota sui timeout**: le function sincrone di Netlify si fermano a 10s sul piano free e 26s su Pro. `generate_routine` è l'azione più lunga e sul piano free può restituire un 502. Vale per tutte le chiamate AI del progetto, non solo per il coach.
+> **Nota sui timeout**: le function sincrone di Netlify hanno un limite di **60 secondi**, non configurabile, sui piani credit-based (Free incluso). I vecchi piani *legacy* si fermano invece a 10s e non hanno le background functions: se il sito è ancora su un piano legacy, le chiamate AI lunghe (generazione programma, analisi foto) falliscono con un 502. In quel caso la soluzione è passare al piano Free credit-based, non modificare il codice.
 
 ## Knowledge base e ragionamenti
 

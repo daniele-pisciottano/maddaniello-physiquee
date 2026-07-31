@@ -1,12 +1,21 @@
 import { supabase } from './supabase'
 
-const DEFAULT_TIMEOUT_MS = 60_000 // 60s: sotto il cap Netlify paid (10s free).
-// Le call AI più pesanti possono essere lunghe; preferiamo far vedere un
-// errore esplicito all'utente invece di lasciare lo stato pending all'infinito.
+// Netlify interrompe le function sincrone a 60s (limite non configurabile
+// sui piani credit-based; 10s sui vecchi piani legacy). Il timeout client
+// sta appena sopra: così quando è il server a fermarsi vediamo il suo
+// errore reale invece di un abort generico del browser.
+const DEFAULT_TIMEOUT_MS = 65_000
 
 export type ApiOptions = {
   timeoutMs?: number
   signal?: AbortSignal
+}
+
+// Netlify risponde 502 con "Task timed out after N seconds" quando la
+// function supera il limite del piano.
+function isPlatformTimeout(status: number, body: string): boolean {
+  if (status !== 502 && status !== 504) return false
+  return /task timed out|execution.*timed out|lambda.*timeout/i.test(body)
 }
 
 // Wrapper per chiamare le Netlify Functions includendo il bearer token Supabase.
@@ -52,6 +61,16 @@ export async function callApi<T = unknown>(
     }
 
     if (!res.ok) {
+      // Quando è Netlify a interrompere la function, il body non è il
+      // nostro JSON ma un errore della piattaforma: senza tradurlo
+      // l'utente vede "Task timed out after 10.00 seconds" e non capisce
+      // che il problema è il piano, non la sua richiesta.
+      if (isPlatformTimeout(res.status, text)) {
+        throw new Error(
+          "L'operazione ha superato il tempo massimo consentito dall'hosting. " +
+            'Se si ripete su tutte le richieste AI, il sito è probabilmente su un piano Netlify legacy (limite 10s): passando al piano Free credit-based il limite sale a 60s.',
+        )
+      }
       const msg =
         (json as { error?: string } | null)?.error ||
         text ||

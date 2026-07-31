@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils'
 import { useMeasurements } from '@/features/measurements/useMeasurements'
 import { useProfile } from '@/features/profile/useProfile'
 import { QuickWeighDialog } from '@/components/QuickWeighDialog'
+import { SectionHelp } from '@/components/tutorial/SectionHelp'
 
 type Period = '7' | '30' | '90' | 'all'
 
@@ -146,8 +147,9 @@ export function Trends() {
     <div className="space-y-6 pb-20 md:pb-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+          <p className="flex items-center gap-1 text-xs uppercase tracking-widest text-muted-foreground">
             Andamento
+            <SectionHelp id="trends" />
           </p>
           <h2 className="mt-1 font-mono text-2xl font-semibold tracking-tight sm:text-3xl">
             Trend peso & body fat

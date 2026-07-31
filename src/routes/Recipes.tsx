@@ -33,6 +33,7 @@ import { useFoods } from '@/features/foods/useFoods'
 import { round0, round1, scaleForGrams } from '@/lib/macro'
 import { IngredientPickerDialog } from '@/components/food-picker/IngredientPickerDialog'
 import type { PickedFood } from '@/components/food-picker/FoodPicker'
+import { SectionHelp } from '@/components/tutorial/SectionHelp'
 
 export function Recipes() {
   const { data: recipes = [], isLoading } = useRecipes()
@@ -54,8 +55,9 @@ export function Recipes() {
     <div className="space-y-6 pb-20 md:pb-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+          <p className="flex items-center gap-1 text-xs uppercase tracking-widest text-muted-foreground">
             Ricette
+            <SectionHelp id="recipes" />
           </p>
           <h2 className="mt-1 font-mono text-2xl font-semibold tracking-tight sm:text-3xl">
             I miei pasti composti

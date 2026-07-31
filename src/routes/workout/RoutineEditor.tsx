@@ -29,20 +29,10 @@ import {
 } from '@/features/workout/useRoutines'
 import {
   MUSCLE_ORDER,
+  WEEKDAY_LABELS,
   muscleLabel,
   type Exercise,
 } from '@/features/workout/types'
-
-// Indici 0-6 come il CHECK di `routines.weekday` (0 = lunedì).
-export const WEEKDAY_LABELS: Record<number, string> = {
-  0: 'Lunedì',
-  1: 'Martedì',
-  2: 'Mercoledì',
-  3: 'Giovedì',
-  4: 'Venerdì',
-  5: 'Sabato',
-  6: 'Domenica',
-}
 
 type Props = {
   open: boolean
@@ -256,8 +246,8 @@ export function RoutineEditor({ open, onOpenChange, routineId }: Props) {
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[92dvh] max-w-3xl flex-col gap-0 overflow-hidden p-0 sm:p-0">
+          <DialogHeader className="shrink-0 p-4 pb-3 pr-10 sm:p-6 sm:pb-3">
             <DialogTitle>
               {routineId ? 'Modifica scheda' : 'Nuova scheda'}
             </DialogTitle>
@@ -267,6 +257,7 @@ export function RoutineEditor({ open, onOpenChange, routineId }: Props) {
             </DialogDescription>
           </DialogHeader>
 
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-6">
           {isError ? (
             <p className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
               Non è stato possibile caricare la scheda. Chiudi e riprova.
@@ -482,25 +473,38 @@ export function RoutineEditor({ open, onOpenChange, routineId }: Props) {
                 </p>
               </div>
 
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                >
-                  Annulla
-                </Button>
-                <Button type="button" onClick={handleSave} disabled={saving}>
-                  {saving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  Salva scheda
-                </Button>
-              </div>
             </div>
           )}
+          </div>
+
+          {/* Footer fisso: con una scheda da otto esercizi il pulsante di
+              salvataggio sarebbe altrimenti a schermate di distanza. */}
+          <div
+            className="flex shrink-0 items-center justify-end gap-2 border-t border-border p-4 sm:p-6"
+            style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+          >
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11"
+              onClick={() => onOpenChange(false)}
+            >
+              Annulla
+            </Button>
+            <Button
+              type="button"
+              className="h-11"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Salva scheda
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
